@@ -14,14 +14,25 @@ import { Plus, Edit2, Trash2, Check, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "motion/react";
 
+// Predefined folder colors (#TODO need to sort the colors)
 const folderColors = [
   "#5227FF",
-  "#FF5733",
-  "#33FF57",
-  "#3357FF",
-  "#FF33A1",
-  "#FFD700",
-  "#00CED1",
+  "#EBF4DD",
+  "#EAE0CF",
+  "#FFF8D4",
+  "#90AB8B",
+  "#5A7863",
+  "#A3B087",
+  "#94B4C1",
+  "#547792",
+  "#435663",
+  "#3B4953",
+  "#213448",
+  "#574964",
+  "#9F8383",
+  "#C8AAAA",
+  "#FFDAB3",
+  "#313647",
 ];
 
 const FoldersSidebar = () => {
