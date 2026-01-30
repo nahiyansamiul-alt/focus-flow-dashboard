@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   Dialog,
   DialogContent,
@@ -6,52 +6,35 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import { useSession, Session } from "@/contexts/SessionContext";
 
 interface DayData {
   level: number;
   date: Date;
-  sessions: { start: string; end: string; duration: number }[];
+  sessions: Session[];
 }
 
 const ContributionGrid = () => {
   const [selectedDay, setSelectedDay] = useState<DayData | null>(null);
+  const { getSessionsForDate, getLevelForDate } = useSession();
 
-  // Generate mock data for 20 weeks (140 days)
-  const generateData = (): DayData[] => {
-    const data: DayData[] = [];
+  // Generate grid data for 20 weeks (140 days)
+  const data = useMemo((): DayData[] => {
+    const result: DayData[] = [];
     const today = new Date();
     
     for (let i = 139; i >= 0; i--) {
       const date = new Date(today);
       date.setDate(date.getDate() - i);
+      date.setHours(0, 0, 0, 0);
       
-      const random = Math.random();
-      let level = 0;
-      const sessions: { start: string; end: string; duration: number }[] = [];
+      const sessions = getSessionsForDate(date);
+      const level = getLevelForDate(date);
       
-      if (random > 0.7) {
-        level = 1;
-        sessions.push({ start: "09:00", end: "09:30", duration: 30 });
-      }
-      if (random > 0.8) {
-        level = 2;
-        sessions.push({ start: "14:00", end: "15:00", duration: 60 });
-      }
-      if (random > 0.9) {
-        level = 3;
-        sessions.push({ start: "19:00", end: "20:30", duration: 90 });
-      }
-      if (random > 0.95) {
-        level = 4;
-        sessions.push({ start: "21:00", end: "22:00", duration: 60 });
-      }
-      
-      data.push({ level, date, sessions });
+      result.push({ level, date, sessions });
     }
-    return data;
-  };
-
-  const [data] = useState(generateData);
+    return result;
+  }, [getSessionsForDate, getLevelForDate]);
   
   const weeks: DayData[][] = [];
   for (let i = 0; i < 20; i++) {
