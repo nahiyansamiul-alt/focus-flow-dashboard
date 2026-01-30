@@ -14,73 +14,55 @@ import { Plus, Edit2, Trash2, Check, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "motion/react";
 
-// Predefined folder colors (#TODO need to sort the colors)
-// const folderColors = [
-//   "#5227FF",
-//   "#EBF4DD",
-//   "#EAE0CF",
-//   "#FFF8D4",
-//   "#90AB8B",
-//   "#5A7863",
-//   "#A3B087",
-//   "#94B4C1",
-//   "#547792",
-//   "#435663",
-//   "#3B4953",
-//   "#213448",
-//   "#574964",
-//   "#9F8383",
-//   "#C8AAAA",
-//   "#FFDAB3",
-//   "#313647",
-//   "#6B3F69",
-//   "#8D5F8C",
-//   "#A376A2",
-//   "#DDC3C3",
-//   "#537D5D",
-//   "#73946B",
-//   "#9EBC8A",
-//   "#D2D0A0",
-//   "#F7374F",
-//   "#88304E",
-//   "#522546",
-//   "#2C2C2C",
-//   "#213448",
-//   "#547792",
-//   "#94B4C1",
-//   "#EAE0CF",
-// ];
-
-
 const folderColors = [
-  "#EBF4DD",
-  "#FFF8D4",
-  "#FFDAB3",
-  "#EAE0CF",
-  "#DDC3C3",
-  "#C8AAAA",
-  "#D2D0A0",
-  "#A3B087",
-  "#9EBC8A",
-  "#9F8383",
-  "#A376A2",
-  "#94B4C1",
-  "#90AB8B",
-  "#73946B",
-  "#8D5F8C",
-  "#547792",
-  "#537D5D",
-  "#5A7863",
-  "#6B3F69",
-  "#574964",
+  // Reds / Pinks
+  "#F7374F",
+  "#BE3144",
+  "#921A40",
+  "#872341",
   "#88304E",
   "#522546",
+  "#C75B7A",
+  "#E17564",
+  "#F4D9D0",
+  "#DDC3C3",
+  "#D9ABAB",
+  "#C8AAAA",
+  "#9F8383",
+
+  // Purples
+  "#A376A2",
+  "#8D5F8C",
+  "#6B3F69",
+  "#574964",
+
+  // Blues
+  "#94B4C1",
+  "#547792",
   "#435663",
   "#3B4953",
   "#313647",
   "#213448",
-  "#2C2C2C",
-  "#F7374F"
+  "#09122C",
+  "#5227FF",
+
+  // Greens
+  "#EBF4DD",
+  "#A3B087",
+  "#9EBC8A",
+  "#90AB8B",
+  "#73946B",
+  "#5A7863",
+  "#537D5D",
+
+  // Yellows / Beiges
+  "#FFF8D4",
+  "#FFDAB3",
+  "#EAE0CF",
+  "#D2D0A0",
+
+  // Neutral / Dark
+  "#2C2C2C"
 ];
 
 
