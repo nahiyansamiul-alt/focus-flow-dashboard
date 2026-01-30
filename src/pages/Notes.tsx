@@ -1,16 +1,22 @@
 import { useNavigate } from "react-router-dom";
 import { NotesProvider, useNotes } from "@/contexts/NotesContext";
 import FoldersSidebar from "@/components/FoldersSidebar";
-import NotesList from "@/components/NotesList";
 import MarkdownEditor from "@/components/MarkdownEditor";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, FileText } from "lucide-react";
+import { ArrowLeft, FileText, Plus } from "lucide-react";
 
 const NotesContent = () => {
   const navigate = useNavigate();
-  const { getSelectedNote, updateNote, selectedNoteId } = useNotes();
+  const { getSelectedNote, updateNote, selectedNoteId, selectedFolderId, createNote, selectNote } = useNotes();
   
   const selectedNote = getSelectedNote();
+
+  const handleCreateNote = () => {
+    if (selectedFolderId) {
+      const note = createNote(selectedFolderId);
+      selectNote(note.id);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -27,18 +33,25 @@ const NotesContent = () => {
         <h1 className="font-display text-3xl md:text-4xl font-bold tracking-tighter">
           NOTES
         </h1>
+        <div className="flex-1" />
+        {selectedFolderId && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleCreateNote}
+            className="gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            New Note
+          </Button>
+        )}
       </header>
 
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Folders Sidebar */}
-        <aside className="w-64 border-r border-border p-4 overflow-hidden flex-shrink-0">
+        {/* Folders Sidebar - Discord style */}
+        <aside className="w-72 border-r border-border p-4 overflow-y-auto flex-shrink-0">
           <FoldersSidebar />
-        </aside>
-
-        {/* Notes List */}
-        <aside className="w-64 border-r border-border p-4 overflow-hidden flex-shrink-0">
-          <NotesList />
         </aside>
 
         {/* Editor Area */}
@@ -55,7 +68,7 @@ const NotesContent = () => {
             <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
               <FileText className="w-16 h-16 mb-4 opacity-50" />
               <p className="text-lg font-body">Select a note to start editing</p>
-              <p className="text-sm mt-2">Or create a new one from the folder</p>
+              <p className="text-sm mt-2">Or create a new one from a folder</p>
             </div>
           )}
         </main>

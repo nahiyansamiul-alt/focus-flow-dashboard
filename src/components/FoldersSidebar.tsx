@@ -10,7 +10,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Plus, Edit2, Trash2, Check, X } from "lucide-react";
+import { Plus, Edit2, Trash2, Check, X, ChevronRight, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -28,7 +28,9 @@ const FoldersSidebar = () => {
   const { 
     folders, 
     selectedFolderId, 
+    selectedNoteId,
     selectFolder, 
+    selectNote,
     createFolder, 
     updateFolder, 
     deleteFolder,
@@ -41,11 +43,30 @@ const FoldersSidebar = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
+
+  const toggleExpanded = (folderId: string) => {
+    setExpandedFolders(prev => {
+      const next = new Set(prev);
+      if (next.has(folderId)) {
+        next.delete(folderId);
+      } else {
+        next.add(folderId);
+      }
+      return next;
+    });
+  };
+
+  const handleFolderClick = (folderId: string) => {
+    selectFolder(folderId);
+    toggleExpanded(folderId);
+  };
 
   const handleCreateFolder = () => {
     if (newFolderName.trim()) {
       const folder = createFolder(newFolderName.trim(), selectedColor);
       selectFolder(folder.id);
+      setExpandedFolders(prev => new Set(prev).add(folder.id));
       setNewFolderName("");
       setIsCreating(false);
     }
@@ -80,100 +101,159 @@ const FoldersSidebar = () => {
       </div>
 
       {/* Folders List */}
-      <div className="flex-1 overflow-y-auto pt-4">
-        <div className="flex flex-col gap-3">
+      <div className="flex-1 overflow-y-auto pt-2">
+        <div className="flex flex-col gap-1">
           <AnimatePresence mode="popLayout">
-            {folders.map((folder, index) => (
-              <motion.div
-                key={folder.id}
-                layout
-                initial={{ scale: 0.8, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.8, opacity: 0 }}
-                transition={{ duration: 0.2, delay: index * 0.05 }}
-                className="flex items-center gap-3 group"
-              >
-                <div 
-                  className={cn(
-                    "relative rounded-lg transition-all flex-shrink-0",
-                    selectedFolderId === folder.id && "ring-2 ring-primary ring-offset-2 ring-offset-background"
-                  )}
+            {folders.map((folder, index) => {
+              const isExpanded = expandedFolders.has(folder.id);
+              const notes = getNotesByFolder(folder.id);
+              
+              return (
+                <motion.div
+                  key={folder.id}
+                  layout
+                  initial={{ scale: 0.95, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.95, opacity: 0 }}
+                  transition={{ duration: 0.15, delay: index * 0.03 }}
                 >
-                  <Folder
-                    color={folder.color}
-                    size={0.55}
-                    items={getNotesByFolder(folder.id).slice(0, 3).map((_, i) => (
-                      <div key={i} className="w-full h-full p-0.5">
-                        <div className="w-full h-0.5 bg-muted rounded" />
-                      </div>
-                    ))}
-                    onClick={() => selectFolder(folder.id)}
-                  />
-                  
-                  {/* Actions overlay */}
-                  <div className="absolute -top-2 -right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Button
-                      variant="secondary"
-                      size="icon"
-                      className="h-6 w-6"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setEditingId(folder.id);
-                        setEditingName(folder.name);
-                      }}
+                  {/* Folder Header */}
+                  <div 
+                    className={cn(
+                      "flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors group",
+                      selectedFolderId === folder.id && !selectedNoteId 
+                        ? "bg-muted" 
+                        : "hover:bg-muted/50"
+                    )}
+                    onClick={() => handleFolderClick(folder.id)}
+                  >
+                    {/* Expand/Collapse Arrow */}
+                    <motion.div
+                      animate={{ rotate: isExpanded ? 90 : 0 }}
+                      transition={{ duration: 0.15 }}
                     >
-                      <Edit2 className="w-3 h-3" />
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      size="icon"
-                      className="h-6 w-6"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setDeleteConfirmId(folder.id);
-                      }}
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </Button>
-                  </div>
-                </div>
-                
-                {/* Folder name */}
-                <div className="flex-1 min-w-0">
-                  {editingId === folder.id ? (
-                    <div className="flex items-center gap-1">
-                      <Input
-                        value={editingName}
-                        onChange={(e) => setEditingName(e.target.value)}
-                        onKeyDown={(e) => e.key === "Enter" && handleUpdateFolder(folder.id)}
-                        className="h-6 text-xs flex-1"
-                        autoFocus
+                      <ChevronRight className="w-3 h-3 text-muted-foreground" />
+                    </motion.div>
+
+                    {/* Folder Icon */}
+                    <div className="flex-shrink-0">
+                      <Folder
+                        color={folder.color}
+                        size={0.4}
+                        items={[]}
                       />
+                    </div>
+                    
+                    {/* Folder Name */}
+                    <div className="flex-1 min-w-0">
+                      {editingId === folder.id ? (
+                        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                          <Input
+                            value={editingName}
+                            onChange={(e) => setEditingName(e.target.value)}
+                            onKeyDown={(e) => e.key === "Enter" && handleUpdateFolder(folder.id)}
+                            className="h-5 text-xs flex-1"
+                            autoFocus
+                          />
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-5 w-5 flex-shrink-0"
+                            onClick={() => handleUpdateFolder(folder.id)}
+                          >
+                            <Check className="w-3 h-3" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-5 w-5 flex-shrink-0"
+                            onClick={() => setEditingId(null)}
+                          >
+                            <X className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <span className="text-sm font-body truncate block">
+                          {folder.name}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Note count badge */}
+                    <span className="text-xs text-muted-foreground">
+                      {notes.length}
+                    </span>
+
+                    {/* Actions */}
+                    <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-5 w-5 flex-shrink-0"
-                        onClick={() => handleUpdateFolder(folder.id)}
+                        className="h-5 w-5"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingId(folder.id);
+                          setEditingName(folder.name);
+                        }}
                       >
-                        <Check className="w-3 h-3" />
+                        <Edit2 className="w-3 h-3" />
                       </Button>
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-5 w-5 flex-shrink-0"
-                        onClick={() => setEditingId(null)}
+                        className="h-5 w-5 text-destructive hover:text-destructive"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeleteConfirmId(folder.id);
+                        }}
                       >
-                        <X className="w-3 h-3" />
+                        <Trash2 className="w-3 h-3" />
                       </Button>
                     </div>
-                  ) : (
-                    <span className="text-sm font-body truncate block">
-                      {folder.name}
-                    </span>
-                  )}
-                </div>
-              </motion.div>
-            ))}
+                  </div>
+
+                  {/* Expanded Notes List */}
+                  <AnimatePresence>
+                    {isExpanded && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="ml-6 pl-2 border-l border-border">
+                          {notes.length === 0 ? (
+                            <p className="text-xs text-muted-foreground py-2 px-2">
+                              No notes
+                            </p>
+                          ) : (
+                            notes.map((note) => (
+                              <div
+                                key={note.id}
+                                className={cn(
+                                  "flex items-center gap-2 py-1.5 px-2 rounded cursor-pointer transition-colors text-sm",
+                                  selectedNoteId === note.id 
+                                    ? "bg-primary text-primary-foreground" 
+                                    : "hover:bg-muted/50"
+                                )}
+                                onClick={() => {
+                                  selectFolder(folder.id);
+                                  selectNote(note.id);
+                                }}
+                              >
+                                <FileText className="w-3 h-3 flex-shrink-0" />
+                                <span className="truncate">{note.title}</span>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </motion.div>
+              );
+            })}
           </AnimatePresence>
         </div>
       </div>
