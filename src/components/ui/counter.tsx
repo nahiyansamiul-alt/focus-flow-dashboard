@@ -53,8 +53,9 @@ function Digit({ place, value, height, digitStyle }: DigitProps) {
 
   const valueRoundedToPlace = Math.floor(value / place);
   const animatedValue = useSpring(valueRoundedToPlace, {
-    stiffness: 100,
-    damping: 20
+    stiffness: 75,
+    damping: 15,
+    mass: 0.8
   });
 
   useEffect(() => {
