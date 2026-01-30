@@ -5,6 +5,11 @@ import NotesList from "@/components/NotesList";
 import MarkdownEditor from "@/components/MarkdownEditor";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, FileText, Plus } from "lucide-react";
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from "@/components/ui/resizable";
 
 const NotesContent = () => {
   const navigate = useNavigate();
@@ -48,36 +53,48 @@ const NotesContent = () => {
         )}
       </header>
 
-      {/* Main Content */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Folders Sidebar */}
-        <aside className="w-48 border-r border-border p-4 overflow-y-auto flex-shrink-0">
-          <FoldersSidebar />
-        </aside>
-
-        {/* Notes List */}
-        <aside className="w-64 border-r border-border p-4 overflow-y-auto flex-shrink-0">
-          <NotesList />
-        </aside>
-
-        {/* Editor Area */}
-        <main className="flex-1 p-6 overflow-hidden">
-          {selectedNote ? (
-            <MarkdownEditor
-              key={selectedNoteId}
-              content={selectedNote.content}
-              title={selectedNote.title}
-              onContentChange={(content) => updateNote(selectedNote.id, { content })}
-              onTitleChange={(title) => updateNote(selectedNote.id, { title })}
-            />
-          ) : (
-            <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
-              <FileText className="w-16 h-16 mb-4 opacity-50" />
-              <p className="text-lg font-body">Select a note to start editing</p>
-              <p className="text-sm mt-2">Or create a new one from a folder</p>
+      {/* Main Content with Resizable Panels */}
+      <div className="flex-1 overflow-hidden">
+        <ResizablePanelGroup direction="horizontal" className="h-full">
+          {/* Folders Sidebar */}
+          <ResizablePanel defaultSize={15} minSize={10} maxSize={25}>
+            <div className="h-full p-4 overflow-y-auto border-r border-border">
+              <FoldersSidebar />
             </div>
-          )}
-        </main>
+          </ResizablePanel>
+
+          <ResizableHandle withHandle />
+
+          {/* Notes List */}
+          <ResizablePanel defaultSize={20} minSize={15} maxSize={35}>
+            <div className="h-full p-4 overflow-y-auto border-r border-border">
+              <NotesList />
+            </div>
+          </ResizablePanel>
+
+          <ResizableHandle withHandle />
+
+          {/* Editor Area */}
+          <ResizablePanel defaultSize={65} minSize={40}>
+            <main className="h-full p-6 overflow-hidden">
+              {selectedNote ? (
+                <MarkdownEditor
+                  key={selectedNoteId}
+                  content={selectedNote.content}
+                  title={selectedNote.title}
+                  onContentChange={(content) => updateNote(selectedNote.id, { content })}
+                  onTitleChange={(title) => updateNote(selectedNote.id, { title })}
+                />
+              ) : (
+                <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
+                  <FileText className="w-16 h-16 mb-4 opacity-50" />
+                  <p className="text-lg font-body">Select a note to start editing</p>
+                  <p className="text-sm mt-2">Or create a new one from a folder</p>
+                </div>
+              )}
+            </main>
+          </ResizablePanel>
+        </ResizablePanelGroup>
       </div>
     </div>
   );

@@ -10,7 +10,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Plus, Edit2, Trash2, Check, X, ChevronRight, FileText } from "lucide-react";
+import { Plus, Edit2, Trash2, Check, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -30,7 +30,6 @@ const FoldersSidebar = () => {
     selectedFolderId, 
     selectedNoteId,
     selectFolder, 
-    selectNote,
     createFolder, 
     updateFolder, 
     deleteFolder,
@@ -43,30 +42,15 @@ const FoldersSidebar = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
-  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
-
-  const toggleExpanded = (folderId: string) => {
-    setExpandedFolders(prev => {
-      const next = new Set(prev);
-      if (next.has(folderId)) {
-        next.delete(folderId);
-      } else {
-        next.add(folderId);
-      }
-      return next;
-    });
-  };
 
   const handleFolderClick = (folderId: string) => {
     selectFolder(folderId);
-    toggleExpanded(folderId);
   };
 
   const handleCreateFolder = () => {
     if (newFolderName.trim()) {
       const folder = createFolder(newFolderName.trim(), selectedColor);
       selectFolder(folder.id);
-      setExpandedFolders(prev => new Set(prev).add(folder.id));
       setNewFolderName("");
       setIsCreating(false);
     }
@@ -105,7 +89,6 @@ const FoldersSidebar = () => {
         <div className="flex flex-col gap-1">
           <AnimatePresence mode="popLayout">
             {folders.map((folder, index) => {
-              const isExpanded = expandedFolders.has(folder.id);
               const notes = getNotesByFolder(folder.id);
               
               return (
@@ -117,26 +100,18 @@ const FoldersSidebar = () => {
                   exit={{ scale: 0.95, opacity: 0 }}
                   transition={{ duration: 0.15, delay: index * 0.03 }}
                 >
-                  {/* Folder Header */}
+                  {/* Folder Card */}
                   <div 
                     className={cn(
                       "flex flex-col items-center gap-1 p-3 rounded-lg cursor-pointer transition-colors group",
-                      selectedFolderId === folder.id && !selectedNoteId 
+                      selectedFolderId === folder.id
                         ? "bg-muted" 
                         : "hover:bg-muted/50"
                     )}
                     onClick={() => handleFolderClick(folder.id)}
                   >
-                    {/* Top row with arrow and actions */}
+                    {/* Top row with count and actions */}
                     <div className="w-full flex items-center justify-between">
-                      {/* Expand/Collapse Arrow */}
-                      <motion.div
-                        animate={{ rotate: isExpanded ? 90 : 0 }}
-                        transition={{ duration: 0.15 }}
-                      >
-                        <ChevronRight className="w-3 h-3 text-muted-foreground" />
-                      </motion.div>
-
                       {/* Note count badge */}
                       <span className="text-xs text-muted-foreground">
                         {notes.length}
@@ -214,46 +189,6 @@ const FoldersSidebar = () => {
                       )}
                     </div>
                   </div>
-
-                  {/* Expanded Notes List */}
-                  <AnimatePresence>
-                    {isExpanded && (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: "auto", opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        transition={{ duration: 0.2 }}
-                        className="overflow-hidden"
-                      >
-                        <div className="ml-6 pl-2 border-l border-border">
-                          {notes.length === 0 ? (
-                            <p className="text-xs text-muted-foreground py-2 px-2">
-                              No notes
-                            </p>
-                          ) : (
-                            notes.map((note) => (
-                              <div
-                                key={note.id}
-                                className={cn(
-                                  "flex items-center gap-2 py-1.5 px-2 rounded cursor-pointer transition-colors text-sm",
-                                  selectedNoteId === note.id 
-                                    ? "bg-primary text-primary-foreground" 
-                                    : "hover:bg-muted/50"
-                                )}
-                                onClick={() => {
-                                  selectFolder(folder.id);
-                                  selectNote(note.id);
-                                }}
-                              >
-                                <FileText className="w-3 h-3 flex-shrink-0" />
-                                <span className="truncate">{note.title}</span>
-                              </div>
-                            ))
-                          )}
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
                 </motion.div>
               );
             })}
