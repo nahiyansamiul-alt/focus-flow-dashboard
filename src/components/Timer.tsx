@@ -1,11 +1,14 @@
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { Play, Pause, RotateCcw } from "lucide-react";
+import { Play, Pause, RotateCcw, Save } from "lucide-react";
+import { useSession } from "@/contexts/SessionContext";
+import { toast } from "sonner";
 
 const Timer = () => {
   const [time, setTime] = useState(0);
   const [isRunning, setIsRunning] = useState(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const { addSession } = useSession();
 
   useEffect(() => {
     if (isRunning) {
@@ -25,6 +28,16 @@ const Timer = () => {
     const mins = Math.floor((seconds % 3600) / 60);
     const secs = seconds % 60;
     return `${hrs.toString().padStart(2, "0")}:${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+  };
+
+  const handleSaveSession = () => {
+    if (time > 0) {
+      addSession(time);
+      const mins = Math.round(time / 60);
+      toast.success(`Session saved: ${mins > 0 ? mins + "m" : time + "s"}`);
+      setIsRunning(false);
+      setTime(0);
+    }
   };
 
   const handleReset = () => {
@@ -62,6 +75,14 @@ const Timer = () => {
               Start
             </>
           )}
+        </Button>
+        <Button
+          onClick={handleSaveSession}
+          variant="default"
+          className="h-12 px-4"
+          disabled={time === 0}
+        >
+          <Save className="w-4 h-4" />
         </Button>
         <Button
           onClick={handleReset}
