@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { NotesProvider, useNotes } from "@/contexts/NotesContext";
 import FoldersSidebar from "@/components/FoldersSidebar";
+import NotesList from "@/components/NotesList";
 import MarkdownEditor from "@/components/MarkdownEditor";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, FileText, Plus } from "lucide-react";
@@ -49,9 +50,14 @@ const NotesContent = () => {
 
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Folders Sidebar - Discord style */}
-        <aside className="w-72 border-r border-border p-4 overflow-y-auto flex-shrink-0">
+        {/* Folders Sidebar */}
+        <aside className="w-48 border-r border-border p-4 overflow-y-auto flex-shrink-0">
           <FoldersSidebar />
+        </aside>
+
+        {/* Notes List */}
+        <aside className="w-64 border-r border-border p-4 overflow-y-auto flex-shrink-0">
+          <NotesList />
         </aside>
 
         {/* Editor Area */}
