@@ -120,39 +120,74 @@ const FoldersSidebar = () => {
                   {/* Folder Header */}
                   <div 
                     className={cn(
-                      "flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors group",
+                      "flex flex-col items-center gap-1 p-3 rounded-lg cursor-pointer transition-colors group",
                       selectedFolderId === folder.id && !selectedNoteId 
                         ? "bg-muted" 
                         : "hover:bg-muted/50"
                     )}
                     onClick={() => handleFolderClick(folder.id)}
                   >
-                    {/* Expand/Collapse Arrow */}
-                    <motion.div
-                      animate={{ rotate: isExpanded ? 90 : 0 }}
-                      transition={{ duration: 0.15 }}
-                    >
-                      <ChevronRight className="w-3 h-3 text-muted-foreground" />
-                    </motion.div>
+                    {/* Top row with arrow and actions */}
+                    <div className="w-full flex items-center justify-between">
+                      {/* Expand/Collapse Arrow */}
+                      <motion.div
+                        animate={{ rotate: isExpanded ? 90 : 0 }}
+                        transition={{ duration: 0.15 }}
+                      >
+                        <ChevronRight className="w-3 h-3 text-muted-foreground" />
+                      </motion.div>
+
+                      {/* Note count badge */}
+                      <span className="text-xs text-muted-foreground">
+                        {notes.length}
+                      </span>
+
+                      {/* Actions */}
+                      <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-5 w-5"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingId(folder.id);
+                            setEditingName(folder.name);
+                          }}
+                        >
+                          <Edit2 className="w-3 h-3" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-5 w-5 text-destructive hover:text-destructive"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeleteConfirmId(folder.id);
+                          }}
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    </div>
 
                     {/* Folder Icon */}
-                    <div className="flex-shrink-0">
+                    <div className="flex-shrink-0 my-1">
                       <Folder
                         color={folder.color}
-                        size={0.4}
+                        size={0.5}
                         items={[]}
                       />
                     </div>
                     
-                    {/* Folder Name */}
-                    <div className="flex-1 min-w-0">
+                    {/* Folder Name at bottom */}
+                    <div className="w-full text-center">
                       {editingId === folder.id ? (
                         <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                           <Input
                             value={editingName}
                             onChange={(e) => setEditingName(e.target.value)}
                             onKeyDown={(e) => e.key === "Enter" && handleUpdateFolder(folder.id)}
-                            className="h-5 text-xs flex-1"
+                            className="h-5 text-xs flex-1 text-center"
                             autoFocus
                           />
                           <Button
@@ -173,42 +208,10 @@ const FoldersSidebar = () => {
                           </Button>
                         </div>
                       ) : (
-                        <span className="text-sm font-body truncate block">
+                        <span className="text-xs font-body truncate block">
                           {folder.name}
                         </span>
                       )}
-                    </div>
-
-                    {/* Note count badge */}
-                    <span className="text-xs text-muted-foreground">
-                      {notes.length}
-                    </span>
-
-                    {/* Actions */}
-                    <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-5 w-5"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setEditingId(folder.id);
-                          setEditingName(folder.name);
-                        }}
-                      >
-                        <Edit2 className="w-3 h-3" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-5 w-5 text-destructive hover:text-destructive"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setDeleteConfirmId(folder.id);
-                        }}
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </Button>
                     </div>
                   </div>
 
