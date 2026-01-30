@@ -5,10 +5,21 @@ const Note = require('../models/Note');
 // Get all notes
 router.get('/', async (req, res) => {
   try {
-    const notes = await Note.find().sort({ createdAt: -1 });
+    const notes = await Note.find().populate('folderId').sort({ createdAt: -1 });
     res.json(notes);
   } catch (error) {
     console.error('Error fetching notes:', error);
+    res.status(500).json({ error: 'Failed to fetch notes' });
+  }
+});
+
+// Get notes by folder
+router.get('/folder/:folderId', async (req, res) => {
+  try {
+    const notes = await Note.find({ folderId: req.params.folderId }).sort({ createdAt: -1 });
+    res.json(notes);
+  } catch (error) {
+    console.error('Error fetching notes by folder:', error);
     res.status(500).json({ error: 'Failed to fetch notes' });
   }
 });
@@ -19,11 +30,16 @@ router.post('/', async (req, res) => {
     if (!req.body.title || !req.body.title.trim()) {
       return res.status(400).json({ error: 'Title is required' });
     }
+    if (!req.body.folderId) {
+      return res.status(400).json({ error: 'Folder ID is required' });
+    }
     const note = new Note({
       title: req.body.title.trim(),
-      content: req.body.content || ''
+      content: req.body.content || '',
+      folderId: req.body.folderId
     });
     await note.save();
+    await note.populate('folderId');
     res.status(201).json(note);
   } catch (error) {
     console.error('Error creating note:', error);

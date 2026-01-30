@@ -90,8 +90,13 @@ const FoldersSidebar = () => {
         <div className="flex flex-col gap-1">
           <AnimatePresence mode="popLayout">
             {folders.map((folder, index) => {
-              const folderNotes = notes.filter(n => n.id === (folder._id || folder.id) || n._id === (folder._id || folder.id));
               const folderId = folder._id || folder.id || "";
+              
+              // Count notes that belong to this folder
+              const folderNotes = notes.filter(note => {
+                const noteFolderId = typeof note.folderId === 'object' ? note.folderId?._id : note.folderId;
+                return noteFolderId === folderId;
+              });
               
               return (
                 <motion.div
@@ -139,7 +144,7 @@ const FoldersSidebar = () => {
                           className="h-5 w-5 text-destructive hover:text-destructive"
                           onClick={(e) => {
                             e.stopPropagation();
-                            setDeleteConfirmId(folder.id);
+                            setDeleteConfirmId(folderId);
                           }}
                         >
                           <Trash2 className="w-3 h-3" />
@@ -158,12 +163,12 @@ const FoldersSidebar = () => {
                     
                     {/* Folder Name at bottom */}
                     <div className="w-full text-center">
-                      {editingId === folder.id ? (
+                      {editingId === folderId ? (
                         <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                           <Input
                             value={editingName}
                             onChange={(e) => setEditingName(e.target.value)}
-                            onKeyDown={(e) => e.key === "Enter" && handleUpdateFolder(folder.id)}
+                            onKeyDown={(e) => e.key === "Enter" && handleUpdateFolder(folderId)}
                             className="h-5 text-xs flex-1 text-center"
                             autoFocus
                           />
@@ -171,7 +176,7 @@ const FoldersSidebar = () => {
                             variant="ghost"
                             size="icon"
                             className="h-5 w-5 flex-shrink-0"
-                            onClick={() => handleUpdateFolder(folder.id)}
+                            onClick={() => handleUpdateFolder(folderId)}
                           >
                             <Check className="w-3 h-3" />
                           </Button>

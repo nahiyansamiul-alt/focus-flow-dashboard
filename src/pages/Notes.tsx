@@ -13,7 +13,7 @@ import {
 
 const NotesContent = () => {
   const navigate = useNavigate();
-  const { getSelectedNote, updateNote, selectedNoteId, selectedFolderId, createNote, selectNote, loading } = useNotes();
+  const { getSelectedNote, updateNote, selectedNoteId, selectedFolderId, createNote, selectNote } = useNotes();
   
   const selectedNote = getSelectedNote();
 
@@ -79,11 +79,7 @@ const NotesContent = () => {
           {/* Editor Area */}
           <ResizablePanel defaultSize={65} minSize={40}>
             <main className="h-95vh p-6 overflow-hidden">
-              {loading ? (
-                <div className="h-full flex items-center justify-center text-muted-foreground">
-                  <p>Loading notes...</p>
-                </div>
-              ) : selectedNote ? (
+              {selectedNote ? (
                 <MarkdownEditor
                   key={selectedNoteId}
                   content={selectedNote.content}

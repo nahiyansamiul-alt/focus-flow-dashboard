@@ -1,11 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const Folder = require('../models/Folder');
+const Note = require('../models/Note');
 
 // Get all folders
 router.get('/', async (req, res) => {
   try {
-    const folders = await Folder.find().sort({ createdAt: -1 });
+    const folders = await Folder.find().sort({ createdAt: 1 });
     res.json(folders);
   } catch (error) {
     console.error('Error fetching folders:', error);
@@ -37,7 +38,11 @@ router.post('/', async (req, res) => {
 // Update a folder
 router.put('/:id', async (req, res) => {
   try {
-    const folder = await Folder.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
+    const folder = await Folder.findByIdAndUpdate(
+      req.params.id, 
+      req.body, 
+      { new: true, runValidators: true }
+    );
     if (!folder) {
       return res.status(404).json({ error: 'Folder not found' });
     }
@@ -48,13 +53,20 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-// Delete a folder
+// Delete a folder and all its notes (cascade delete)
 router.delete('/:id', async (req, res) => {
   try {
-    const folder = await Folder.findByIdAndDelete(req.params.id);
+    const folder = await Folder.findById(req.params.id);
     if (!folder) {
       return res.status(404).json({ error: 'Folder not found' });
     }
+    
+    // Delete all notes in this folder first
+    await Note.deleteMany({ folderId: req.params.id });
+    
+    // Then delete the folder
+    await Folder.findByIdAndDelete(req.params.id);
+    
     res.status(204).end();
   } catch (error) {
     console.error('Error deleting folder:', error);

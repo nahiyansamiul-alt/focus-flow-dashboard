@@ -66,10 +66,11 @@ export const todoAPI = {
 // NOTES API
 export const notesAPI = {
   getAll: () => fetchAPI<any[]>('/notes'),
-  create: (title: string, content?: string) =>
+  getByFolder: (folderId: string) => fetchAPI<any[]>(`/notes/folder/${folderId}`),
+  create: (title: string, folderId: string, content?: string) =>
     fetchAPI<any>('/notes', {
       method: 'POST',
-      body: JSON.stringify({ title, content }),
+      body: JSON.stringify({ title, folderId, content }),
     }),
   update: (id: string, updates: any) =>
     fetchAPI<any>(`/notes/${id}`, {

@@ -68,7 +68,12 @@ const NotesList = () => {
   } = useNotes();
 
   const folder = getSelectedFolder();
-  const filteredNotes = notes;
+  
+  // Filter notes by the selected folder's folderId
+  const filteredNotes = notes.filter(note => {
+    const noteFolderId = typeof note.folderId === 'object' ? note.folderId?._id : note.folderId;
+    return noteFolderId === selectedFolderId;
+  });
 
   const handleCreateNote = async () => {
     if (selectedFolderId) {

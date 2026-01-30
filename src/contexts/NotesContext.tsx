@@ -1,300 +1,259 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { notesAPI, foldersAPI } from "@/lib/api";
-import { toast } from "sonner";
+import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 
-export interface Note {
-  _id?: string;
-  id?: string;
-  title: string;
-  content: string;
-  createdAt: Date;
-  updatedAt?: Date;
-}
-
-export interface NoteFolder {
+interface Folder {
   _id?: string;
   id?: string;
   name: string;
   color: string;
-  createdAt: Date;
+  createdAt?: Date;
+}
+
+interface Note {
+  _id?: string;
+  id?: string;
+  title: string;
+  content: string;
+  folderId: string | { _id: string }; // Can be populated or just an ID
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 interface NotesContextType {
-  folders: NoteFolder[];
+  folders: Folder[];
   notes: Note[];
   selectedFolderId: string | null;
   selectedNoteId: string | null;
-  loading: boolean;
   
-  // Folder CRUD
-  createFolder: (name: string, color?: string) => Promise<NoteFolder | null>;
-  updateFolder: (id: string, updates: Partial<Pick<NoteFolder, 'name' | 'color'>>) => Promise<void>;
+  // Folder operations
+  createFolder: (name: string, color: string) => Promise<Folder | null>;
+  updateFolder: (id: string, updates: Partial<Folder>) => Promise<void>;
   deleteFolder: (id: string) => Promise<void>;
-  
-  // Note CRUD
-  createNote: (title?: string, content?: string) => Promise<Note | null>;
-  updateNote: (id: string, updates: Partial<Pick<Note, 'title' | 'content'>>) => Promise<void>;
-  deleteNote: (id: string) => Promise<void>;
-  
-  // Selection
   selectFolder: (id: string | null) => void;
-  selectNote: (id: string | null) => void;
+  getSelectedFolder: () => Folder | null;
   
-  // Getters
+  // Note operations
+  createNote: (title: string, content: string) => Promise<Note | null>;
+  updateNote: (id: string, updates: Partial<Note>) => Promise<void>;
+  deleteNote: (id: string) => Promise<void>;
+  selectNote: (id: string | null) => void;
   getSelectedNote: () => Note | null;
-  getSelectedFolder: () => NoteFolder | null;
 }
 
-const NotesContext = createContext<NotesContextType | null>(null);
+const NotesContext = createContext<NotesContextType | undefined>(undefined);
 
-const folderColors = [
-  "#5227FF", // Purple
-  "#FF5733", // Red-Orange
-  "#33FF57", // Green
-  "#3357FF", // Blue
-  "#FF33A1", // Pink
-  "#FFD700", // Gold
-  "#00CED1", // Cyan
-];
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
-interface NotesProviderProps {
-  children: ReactNode;
-}
-
-export const NotesProvider = ({ children }: NotesProviderProps) => {
-  const [folders, setFolders] = useState<NoteFolder[]>([]);
+export const NotesProvider = ({ children }: { children: ReactNode }) => {
+  const [folders, setFolders] = useState<Folder[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
 
-  // Load folders and notes from backend
-  const loadFolders = async () => {
-    try {
-      const result = await foldersAPI.getAll();
-      if (result.success) {
-        const data = result.data || [];
-        const mappedFolders = data.map((f: any) => ({
-          ...f,
-          id: f._id || f.id,
-          createdAt: new Date(f.createdAt)
-        }));
-        setFolders(mappedFolders);
-        
-        // Select first folder by default
-        if (mappedFolders.length > 0 && !selectedFolderId) {
-          setSelectedFolderId(mappedFolders[0]._id || mappedFolders[0].id);
-        }
-      }
-    } catch (error) {
-      console.error("Error loading folders:", error);
-    }
-  };
-
-  const loadNotes = async () => {
-    try {
-      const result = await notesAPI.getAll();
-      if (result.success) {
-        const data = result.data || [];
-        const mappedNotes = data.map((n: any) => ({
-          ...n,
-          id: n._id || n.id,
-          createdAt: new Date(n.createdAt),
-          updatedAt: n.updatedAt ? new Date(n.updatedAt) : new Date(n.createdAt)
-        }));
-        setNotes(mappedNotes);
-      }
-    } catch (error) {
-      console.error("Error loading notes:", error);
-    }
-  };
-
-  // Load data on mount
+  // Fetch folders on mount
   useEffect(() => {
-    const loadData = async () => {
-      setLoading(true);
-      await loadFolders();
-      await loadNotes();
-      
-      // If no folders exist, create a default dummy folder
-      const foldersResult = await foldersAPI.getAll();
-      if (foldersResult.success && (!foldersResult.data || foldersResult.data.length === 0)) {
-        try {
-          const defaultFolder = await foldersAPI.create("Notes", "#5227FF");
-          if (defaultFolder.success && defaultFolder.data) {
-            const newFolder = {
-              ...defaultFolder.data,
-              id: defaultFolder.data._id,
-              createdAt: new Date(defaultFolder.data.createdAt)
-            };
-            setFolders([newFolder]);
-            setSelectedFolderId(newFolder._id || newFolder.id);
-          }
-        } catch (error) {
-          console.error("Error creating default folder:", error);
-        }
-      }
-      
-      setLoading(false);
-    };
-    loadData();
+    fetchFolders();
   }, []);
 
-  // Folder CRUD
-  const createFolder = async (name: string, color?: string): Promise<NoteFolder | null> => {
-    try {
-      const selectedColor = color || folderColors[folders.length % folderColors.length];
-      const result = await foldersAPI.create(name, selectedColor);
-      if (result.success && result.data) {
-        const newFolder = {
-          ...result.data,
-          id: result.data._id,
-          createdAt: new Date(result.data.createdAt)
-        };
-        setFolders(prev => [...prev, newFolder]);
-        toast.success("Folder created");
-        return newFolder;
-      } else {
-        toast.error(result.error || "Failed to create folder");
-      }
-    } catch (error) {
-      toast.error("Error creating folder");
-      console.error(error);
+  // Fetch notes when folder is selected
+  useEffect(() => {
+    if (selectedFolderId) {
+      fetchNotesByFolder(selectedFolderId);
+    } else {
+      setNotes([]);
     }
-    return null;
-  };
+  }, [selectedFolderId]);
 
-  const updateFolder = async (id: string, updates: Partial<Pick<NoteFolder, 'name' | 'color'>>) => {
+  // Fetch all folders
+  const fetchFolders = async () => {
     try {
-      const result = await foldersAPI.update(id, updates);
-      if (result.success) {
-        setFolders(prev => prev.map(f => 
-          (f._id === id || f.id === id) ? { ...f, ...updates } : f
-        ));
-        toast.success("Folder updated");
-      } else {
-        toast.error(result.error || "Failed to update folder");
-      }
+      const response = await fetch(`${API_BASE_URL}/folders`);
+      if (!response.ok) throw new Error("Failed to fetch folders");
+      const data = await response.json();
+      setFolders(data);
     } catch (error) {
-      toast.error("Error updating folder");
-      console.error(error);
+      console.error("Error fetching folders:", error);
     }
   };
 
+  // Fetch notes by folder
+  const fetchNotesByFolder = async (folderId: string) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/notes/folder/${folderId}`);
+      if (!response.ok) throw new Error("Failed to fetch notes");
+      const data = await response.json();
+      setNotes(data);
+    } catch (error) {
+      console.error("Error fetching notes:", error);
+      setNotes([]);
+    }
+  };
+
+  // Create folder
+  const createFolder = async (name: string, color: string): Promise<Folder | null> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/folders`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, color }),
+      });
+      if (!response.ok) throw new Error("Failed to create folder");
+      const folder = await response.json();
+      setFolders((prev) => [...prev, folder]);
+      return folder;
+    } catch (error) {
+      console.error("Error creating folder:", error);
+      return null;
+    }
+  };
+
+  // Update folder
+  const updateFolder = async (id: string, updates: Partial<Folder>) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/folders/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updates),
+      });
+      if (!response.ok) throw new Error("Failed to update folder");
+      const updatedFolder = await response.json();
+      setFolders((prev) =>
+        prev.map((f) => ((f._id || f.id) === id ? updatedFolder : f))
+      );
+    } catch (error) {
+      console.error("Error updating folder:", error);
+    }
+  };
+
+  // Delete folder (and its notes via backend cascade)
   const deleteFolder = async (id: string) => {
     try {
-      const result = await foldersAPI.delete(id);
-      if (result.success) {
-        setFolders(prev => prev.filter(f => (f._id !== id && f.id !== id)));
-        setNotes(prev => prev.filter(n => n.id !== id));
-        if (selectedFolderId === id) {
-          setSelectedFolderId(null);
-          setSelectedNoteId(null);
-        }
-        toast.success("Folder deleted");
+      const response = await fetch(`${API_BASE_URL}/folders/${id}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) throw new Error("Failed to delete folder");
+      
+      setFolders((prev) => prev.filter((f) => (f._id || f.id) !== id));
+      
+      // If the deleted folder was selected, clear selection
+      if (selectedFolderId === id) {
+        setSelectedFolderId(null);
+        setSelectedNoteId(null);
+        setNotes([]);
       } else {
-        toast.error(result.error || "Failed to delete folder");
+        // Remove notes from the deleted folder from state
+        setNotes((prev) => prev.filter((n) => {
+          const noteFolderId = typeof n.folderId === 'string' ? n.folderId : n.folderId._id;
+          return noteFolderId !== id;
+        }));
       }
     } catch (error) {
-      toast.error("Error deleting folder");
-      console.error(error);
+      console.error("Error deleting folder:", error);
     }
   };
 
-  // Note CRUD
-  const createNote = async (title?: string, content?: string): Promise<Note | null> => {
-    try {
-      const result = await notesAPI.create(title || "Untitled", content || "");
-      if (result.success && result.data) {
-        const newNote = {
-          ...result.data,
-          id: result.data._id,
-          createdAt: new Date(result.data.createdAt),
-          updatedAt: new Date(result.data.updatedAt || result.data.createdAt)
-        };
-        setNotes(prev => [...prev, newNote]);
-        toast.success("Note created");
-        return newNote;
-      } else {
-        toast.error(result.error || "Failed to create note");
-      }
-    } catch (error) {
-      toast.error("Error creating note");
-      console.error(error);
-    }
-    return null;
+  // Select folder
+  const selectFolder = (id: string | null) => {
+    setSelectedFolderId(id);
+    setSelectedNoteId(null); // Clear note selection when switching folders
   };
 
-  const updateNote = async (id: string, updates: Partial<Pick<Note, 'title' | 'content'>>) => {
+  // Get selected folder
+  const getSelectedFolder = (): Folder | null => {
+    if (!selectedFolderId) return null;
+    return folders.find((f) => (f._id || f.id) === selectedFolderId) || null;
+  };
+
+  // Create note
+  const createNote = async (title: string, content: string): Promise<Note | null> => {
+    if (!selectedFolderId) {
+      console.error("No folder selected");
+      return null;
+    }
+    
     try {
-      const result = await notesAPI.update(id, updates);
-      if (result.success) {
-        setNotes(prev => prev.map(n => 
-          (n._id === id || n.id === id) ? { ...n, ...updates, updatedAt: new Date() } : n
-        ));
-      } else {
-        toast.error(result.error || "Failed to update note");
-      }
+      const response = await fetch(`${API_BASE_URL}/notes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, content, folderId: selectedFolderId }),
+      });
+      if (!response.ok) throw new Error("Failed to create note");
+      const note = await response.json();
+      setNotes((prev) => [note, ...prev]); // Add to beginning for newest first
+      setSelectedNoteId(note._id || note.id);
+      return note;
+    } catch (error) {
+      console.error("Error creating note:", error);
+      return null;
+    }
+  };
+
+  // Update note
+  const updateNote = async (id: string, updates: Partial<Note>) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/notes/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...updates, updatedAt: new Date() }),
+      });
+      if (!response.ok) throw new Error("Failed to update note");
+      const updatedNote = await response.json();
+      setNotes((prev) =>
+        prev.map((n) => ((n._id || n.id) === id ? updatedNote : n))
+      );
     } catch (error) {
       console.error("Error updating note:", error);
     }
   };
 
+  // Delete note
   const deleteNote = async (id: string) => {
     try {
-      const result = await notesAPI.delete(id);
-      if (result.success) {
-        setNotes(prev => prev.filter(n => (n._id !== id && n.id !== id)));
-        if (selectedNoteId === id) {
-          setSelectedNoteId(null);
-        }
-        toast.success("Note deleted");
-      } else {
-        toast.error(result.error || "Failed to delete note");
+      const response = await fetch(`${API_BASE_URL}/notes/${id}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) throw new Error("Failed to delete note");
+      
+      setNotes((prev) => prev.filter((n) => (n._id || n.id) !== id));
+      
+      // If the deleted note was selected, clear selection
+      if (selectedNoteId === id) {
+        setSelectedNoteId(null);
       }
     } catch (error) {
-      toast.error("Error deleting note");
-      console.error(error);
+      console.error("Error deleting note:", error);
     }
   };
 
-  // Selection
-  const selectFolder = (id: string | null) => {
-    setSelectedFolderId(id);
-    setSelectedNoteId(null);
-  };
-
+  // Select note
   const selectNote = (id: string | null) => {
     setSelectedNoteId(id);
   };
 
-  // Getters
-  const getSelectedNote = () => {
-    return notes.find(n => (n._id === selectedNoteId || n.id === selectedNoteId)) || null;
-  };
-
-  const getSelectedFolder = () => {
-    return folders.find(f => (f._id === selectedFolderId || f.id === selectedFolderId)) || null;
+  // Get selected note
+  const getSelectedNote = (): Note | null => {
+    if (!selectedNoteId) return null;
+    return notes.find((n) => (n._id || n.id) === selectedNoteId) || null;
   };
 
   return (
-    <NotesContext.Provider value={{
-      folders,
-      notes,
-      selectedFolderId,
-      selectedNoteId,
-      loading,
-      createFolder,
-      updateFolder,
-      deleteFolder,
-      createNote,
-      updateNote,
-      deleteNote,
-      selectFolder,
-      selectNote,
-      getSelectedNote,
-      getSelectedFolder
-    }}>
+    <NotesContext.Provider
+      value={{
+        folders,
+        notes,
+        selectedFolderId,
+        selectedNoteId,
+        createFolder,
+        updateFolder,
+        deleteFolder,
+        selectFolder,
+        getSelectedFolder,
+        createNote,
+        updateNote,
+        deleteNote,
+        selectNote,
+        getSelectedNote,
+      }}
+    >
       {children}
     </NotesContext.Provider>
   );

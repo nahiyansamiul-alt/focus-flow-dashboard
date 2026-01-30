@@ -1,9 +1,10 @@
 const { app, BrowserWindow, ipcMain, Menu } = require('electron');
-const isDev = require('electron-is-dev');
+const isDev = require('electron');
 const path = require('path');
 const { spawn } = require('child_process');
 const PORT = 3000;
 const API_PORT = 5000;
+
 
 let mainWindow;
 let backendProcess;
