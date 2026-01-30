@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 import Timer from "@/components/Timer";
 import Clock from "@/components/Clock";
 import TodoList from "@/components/TodoList";
@@ -6,12 +7,18 @@ import Stats from "@/components/Stats";
 import { SessionProvider } from "@/contexts/SessionContext";
 
 const Index = () => {
+  const navigate = useNavigate();
+
   return (
     <SessionProvider>
       <div className="min-h-screen bg-background p-8 md:p-12 lg:p-16">
         {/* Header */}
         <header className="mb-16">
-          <h1 className="font-display text-6xl md:text-8xl lg:text-9xl font-bold tracking-tighter text-foreground leading-none">
+          <h1 
+            className="font-display text-6xl md:text-8xl lg:text-9xl font-bold tracking-tighter text-foreground leading-none cursor-pointer hover:text-muted-foreground transition-colors"
+            onClick={() => navigate("/notes")}
+            title="Go to Notes"
+          >
             FOCUS
           </h1>
           <p className="font-accent text-xl md:text-2xl text-muted-foreground mt-2 italic">
