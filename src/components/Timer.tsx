@@ -3,6 +3,20 @@ import { Button } from "@/components/ui/button";
 import { Play, Pause, RotateCcw, Save } from "lucide-react";
 import { useSession } from "@/contexts/SessionContext";
 import { toast } from "sonner";
+import Counter from "@/components/ui/counter";
+
+const TimerDigit = ({ value, fontSize }: { value: number; fontSize: number }) => (
+  <Counter
+    value={value}
+    fontSize={fontSize}
+    places={[10, 1]}
+    gap={0}
+    horizontalPadding={0}
+    gradientHeight={0}
+    gradientFrom="transparent"
+    gradientTo="transparent"
+  />
+);
 
 const Timer = () => {
   const [time, setTime] = useState(0);
@@ -23,12 +37,9 @@ const Timer = () => {
     };
   }, [isRunning]);
 
-  const formatTime = (seconds: number) => {
-    const hrs = Math.floor(seconds / 3600);
-    const mins = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-    return `${hrs.toString().padStart(2, "0")}:${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
-  };
+  const hours = Math.floor(time / 3600);
+  const minutes = Math.floor((time % 3600) / 60);
+  const seconds = time % 60;
 
   const handleSaveSession = () => {
     if (time > 0) {
@@ -45,6 +56,8 @@ const Timer = () => {
     setTime(0);
   };
 
+  const fontSize = typeof window !== 'undefined' && window.innerWidth < 768 ? 56 : 72;
+
   return (
     <div className="border border-border p-8 bg-card">
       <div className="flex items-center justify-between mb-6">
@@ -54,8 +67,12 @@ const Timer = () => {
         <div className={`w-2 h-2 rounded-full ${isRunning ? "bg-green-500 animate-pulse" : "bg-muted-foreground"}`} />
       </div>
       
-      <div className="font-display text-7xl md:text-8xl font-bold tracking-tighter text-foreground mb-8 tabular-nums">
-        {formatTime(time)}
+      <div className="font-display font-bold tracking-tighter text-foreground mb-8 flex items-center justify-start">
+        <TimerDigit value={hours} fontSize={fontSize} />
+        <span className="mx-1" style={{ fontSize }}>:</span>
+        <TimerDigit value={minutes} fontSize={fontSize} />
+        <span className="mx-1" style={{ fontSize }}>:</span>
+        <TimerDigit value={seconds} fontSize={fontSize} />
       </div>
 
       <div className="flex gap-3">
