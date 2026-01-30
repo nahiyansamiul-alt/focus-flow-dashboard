@@ -12,7 +12,29 @@ dist
 dist-ssr
 *.local
 
-# Editor directories and files
+# Electron build output
+dist_electron/
+dist_electron
+
+# Electron app packages
+*.exe
+*.dmg
+*.AppImage
+*.deb
+*.zip
+
+# Backend
+backend/node_modules
+backend/.env
+backend/.env.local
+backend/dist
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# IDE and editor directories
 .vscode/*
 !.vscode/extensions.json
 .idea
@@ -22,3 +44,12 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+*.sublime-workspace
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# Build cache
+*.tsbuildinfo
+.cache

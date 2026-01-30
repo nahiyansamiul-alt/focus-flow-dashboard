@@ -2,12 +2,29 @@ const { app, BrowserWindow, ipcMain, Menu } = require('electron');
 const isDev = require('electron');
 const path = require('path');
 const { spawn } = require('child_process');
+const { autoUpdater } = require('electron-updater');
 const PORT = 3000;
 const API_PORT = 5000;
 
 
 let mainWindow;
 let backendProcess;
+
+// Configure auto-updater
+autoUpdater.checkForUpdatesAndNotify();
+
+// Listen for update events
+autoUpdater.on('update-available', () => {
+  mainWindow?.webContents.send('update-available');
+});
+
+autoUpdater.on('update-downloaded', () => {
+  mainWindow?.webContents.send('update-downloaded');
+});
+
+autoUpdater.on('error', (error) => {
+  console.error('Update error:', error);
+});
 
 // Start Express backend server
 function startBackend() {
@@ -100,6 +117,15 @@ ipcMain.handle('get-api-url', () => {
 
 ipcMain.handle('get-version', () => {
   return app.getVersion();
+});
+
+// Update IPC handlers
+ipcMain.handle('install-update', () => {
+  autoUpdater.quitAndInstall();
+});
+
+ipcMain.handle('check-for-updates', async () => {
+  return await autoUpdater.checkForUpdates();
 });
 
 // Create application menu

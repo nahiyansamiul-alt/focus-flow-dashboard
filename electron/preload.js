@@ -8,6 +8,13 @@ contextBridge.exposeInMainWorld('electron', {
   // Get app version
   getVersion: () => ipcRenderer.invoke('get-version'),
   
+  // IPC methods for updates
+  ipcRenderer: {
+    on: (channel, listener) => ipcRenderer.on(channel, listener),
+    removeListener: (channel, listener) => ipcRenderer.removeListener(channel, listener),
+    invoke: (channel, ...args) => ipcRenderer.invoke(channel, ...args),
+  },
+  
   // Platform info
   platform: process.platform,
   isElectron: true,

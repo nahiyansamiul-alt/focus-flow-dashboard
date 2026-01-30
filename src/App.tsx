@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import Notes from "./pages/Notes";
 import NotFound from "./pages/NotFound";
+import { UpdateNotification } from "./components/UpdateNotification";
 
 const queryClient = new QueryClient();
 
@@ -14,6 +15,7 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
+      <UpdateNotification />
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Index />} />
