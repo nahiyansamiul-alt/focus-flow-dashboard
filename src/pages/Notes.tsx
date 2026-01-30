@@ -58,7 +58,7 @@ const NotesContent = () => {
         <ResizablePanelGroup direction="horizontal" className="h-full">
           {/* Folders Sidebar */}
           <ResizablePanel defaultSize={15} minSize={10} maxSize={25}>
-            <div className="h-full p-4 overflow-y-auto border-r border-border">
+            <div className="h-full p-4 overflow-y-auto overflow-x-hidden border-r border-border">
               <FoldersSidebar />
             </div>
           </ResizablePanel>
