@@ -79,9 +79,9 @@ const FoldersSidebar = () => {
         </Button>
       </div>
 
-      {/* Folders Grid */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="grid grid-cols-2 gap-4">
+      {/* Folders List */}
+      <div className="flex-1 overflow-y-auto pt-4">
+        <div className="flex flex-col gap-3">
           <AnimatePresence mode="popLayout">
             {folders.map((folder, index) => (
               <motion.div
@@ -91,20 +91,20 @@ const FoldersSidebar = () => {
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.8, opacity: 0 }}
                 transition={{ duration: 0.2, delay: index * 0.05 }}
-                className="flex flex-col items-center gap-2 group"
+                className="flex items-center gap-3 group"
               >
                 <div 
                   className={cn(
-                    "relative rounded-lg transition-all",
+                    "relative rounded-lg transition-all flex-shrink-0",
                     selectedFolderId === folder.id && "ring-2 ring-primary ring-offset-2 ring-offset-background"
                   )}
                 >
                   <Folder
                     color={folder.color}
-                    size={0.8}
+                    size={0.55}
                     items={getNotesByFolder(folder.id).slice(0, 3).map((_, i) => (
-                      <div key={i} className="w-full h-full p-1">
-                        <div className="w-full h-1 bg-muted rounded" />
+                      <div key={i} className="w-full h-full p-0.5">
+                        <div className="w-full h-0.5 bg-muted rounded" />
                       </div>
                     ))}
                     onClick={() => selectFolder(folder.id)}
@@ -139,37 +139,39 @@ const FoldersSidebar = () => {
                 </div>
                 
                 {/* Folder name */}
-                {editingId === folder.id ? (
-                  <div className="flex items-center gap-1">
-                    <Input
-                      value={editingName}
-                      onChange={(e) => setEditingName(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && handleUpdateFolder(folder.id)}
-                      className="h-6 text-xs w-20 text-center"
-                      autoFocus
-                    />
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-5 w-5"
-                      onClick={() => handleUpdateFolder(folder.id)}
-                    >
-                      <Check className="w-3 h-3" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-5 w-5"
-                      onClick={() => setEditingId(null)}
-                    >
-                      <X className="w-3 h-3" />
-                    </Button>
-                  </div>
-                ) : (
-                  <span className="text-xs font-body text-center truncate max-w-[80px]">
-                    {folder.name}
-                  </span>
-                )}
+                <div className="flex-1 min-w-0">
+                  {editingId === folder.id ? (
+                    <div className="flex items-center gap-1">
+                      <Input
+                        value={editingName}
+                        onChange={(e) => setEditingName(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && handleUpdateFolder(folder.id)}
+                        className="h-6 text-xs flex-1"
+                        autoFocus
+                      />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-5 w-5 flex-shrink-0"
+                        onClick={() => handleUpdateFolder(folder.id)}
+                      >
+                        <Check className="w-3 h-3" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-5 w-5 flex-shrink-0"
+                        onClick={() => setEditingId(null)}
+                      >
+                        <X className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <span className="text-sm font-body truncate block">
+                      {folder.name}
+                    </span>
+                  )}
+                </div>
               </motion.div>
             ))}
           </AnimatePresence>
