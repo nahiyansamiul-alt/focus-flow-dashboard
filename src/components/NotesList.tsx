@@ -1,0 +1,131 @@
+import { useRef } from "react";
+import { motion, AnimatePresence, useInView } from "motion/react";
+import { useNotes } from "@/contexts/NotesContext";
+import { Button } from "@/components/ui/button";
+import { Plus, FileText, Trash2 } from "lucide-react";
+import { cn } from "@/lib/utils";
+
+interface AnimatedNoteItemProps {
+  noteId: string;
+  title: string;
+  isSelected: boolean;
+  onClick: () => void;
+  onDelete: () => void;
+  index: number;
+}
+
+const AnimatedNoteItem = ({ noteId, title, isSelected, onClick, onDelete, index }: AnimatedNoteItemProps) => {
+  const ref = useRef<HTMLDivElement>(null);
+  const inView = useInView(ref, { amount: 0.5, once: false });
+
+  return (
+    <motion.div
+      ref={ref}
+      layout
+      initial={{ scale: 0.8, opacity: 0, x: -20 }}
+      animate={inView ? { scale: 1, opacity: 1, x: 0 } : { scale: 0.8, opacity: 0, x: -20 }}
+      exit={{ scale: 0.8, opacity: 0, x: -50 }}
+      transition={{ 
+        duration: 0.2, 
+        delay: index * 0.03,
+        layout: { duration: 0.15 }
+      }}
+      className={cn(
+        "group flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors",
+        isSelected ? "bg-primary text-primary-foreground" : "hover:bg-muted"
+      )}
+      onClick={onClick}
+    >
+      <FileText className="w-4 h-4 flex-shrink-0" />
+      <span className="flex-1 truncate text-sm font-body">{title}</span>
+      <Button
+        variant="ghost"
+        size="icon"
+        className={cn(
+          "h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity",
+          isSelected ? "hover:bg-primary-foreground/20" : ""
+        )}
+        onClick={(e) => {
+          e.stopPropagation();
+          onDelete();
+        }}
+      >
+        <Trash2 className="w-3 h-3" />
+      </Button>
+    </motion.div>
+  );
+};
+
+const NotesList = () => {
+  const { 
+    selectedFolderId, 
+    selectedNoteId, 
+    getNotesByFolder, 
+    createNote, 
+    deleteNote, 
+    selectNote,
+    getSelectedFolder
+  } = useNotes();
+
+  const folder = getSelectedFolder();
+  const notes = selectedFolderId ? getNotesByFolder(selectedFolderId) : [];
+
+  if (!selectedFolderId) {
+    return (
+      <div className="h-full flex items-center justify-center text-muted-foreground text-sm">
+        Select a folder to view notes
+      </div>
+    );
+  }
+
+  return (
+    <div className="h-full flex flex-col">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="font-display font-semibold text-lg truncate">
+          {folder?.name || "Notes"}
+        </h3>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => {
+            const note = createNote(selectedFolderId);
+            selectNote(note.id);
+          }}
+          title="New Note"
+        >
+          <Plus className="w-4 h-4" />
+        </Button>
+      </div>
+
+      {/* Notes List */}
+      <div className="flex-1 overflow-y-auto space-y-1">
+        <AnimatePresence mode="popLayout">
+          {notes.length === 0 ? (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="text-muted-foreground text-sm text-center py-8"
+            >
+              No notes yet. Create one!
+            </motion.div>
+          ) : (
+            notes.map((note, index) => (
+              <AnimatedNoteItem
+                key={note.id}
+                noteId={note.id}
+                title={note.title}
+                isSelected={note.id === selectedNoteId}
+                onClick={() => selectNote(note.id)}
+                onDelete={() => deleteNote(note.id)}
+                index={index}
+              />
+            ))
+          )}
+        </AnimatePresence>
+      </div>
+    </div>
+  );
+};
+
+export default NotesList;
