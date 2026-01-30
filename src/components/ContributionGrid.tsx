@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -19,7 +19,7 @@ interface DayData {
 const ContributionGrid = () => {
   const [selectedDay, setSelectedDay] = useState<DayData | null>(null);
   const [reminderPopupOpen, setReminderPopupOpen] = useState(false);
-  const { getSessionsForDate, getLevelForDate } = useSession();
+  const { getSessionsForDate, getLevelForDate, isLoading } = useSession();
   const { reminders, getRemindersByDate } = useReminders();
 
   // Generate grid data for 20 weeks (140 days)

@@ -23,10 +23,12 @@ const Timer = () => {
   const [time, setTime] = useState(0);
   const [isRunning, setIsRunning] = useState(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  const { addSession } = useSession();
+  const startTimeRef = useRef<Date>(new Date());
+  const { addSession, fetchSessions } = useSession();
 
   useEffect(() => {
     if (isRunning) {
+      startTimeRef.current = new Date();
       intervalRef.current = setInterval(() => {
         setTime((prev) => prev + 1);
       }, 1000);
@@ -45,17 +47,29 @@ const Timer = () => {
   const handleSaveSession = async () => {
     if (time > 0) {
       try {
-        addSession(time);
+        // Calculate start and end times
+        const endDate = new Date();
+        const startDate = new Date(endDate.getTime() - time * 1000);
         
+        const startTime = startDate.toTimeString().slice(0, 5);
+        const endTime = endDate.toTimeString().slice(0, 5);
+        const durationMinutes = Math.round(time / 60);
+
         // Save to backend
-        const mins = Math.round(time / 60);
-        const result = await historyAPI.create(
-          'focus_session',
-          `Completed a ${mins} minute focus session`
-        );
+        const result = await historyAPI.create('focus_session', `Completed a ${durationMinutes} minute focus session`, {
+          duration: durationMinutes,
+          startTime,
+          endTime,
+        });
         
         if (result.success) {
-          toast.success(`Session saved: ${mins > 0 ? mins + "m" : time + "s"}`);
+          // Update local state
+          addSession(time, startTime, endTime);
+          
+          // Refresh sessions from backend to ensure sync
+          await fetchSessions();
+          
+          toast.success(`Session saved: ${durationMinutes > 0 ? durationMinutes + "m" : time + "s"}`);
         } else {
           toast.error(result.error || 'Failed to save session');
         }

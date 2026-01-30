@@ -126,9 +126,15 @@ export const remindersAPI = {
 export const historyAPI = {
   getAll: () => fetchAPI<any[]>('/history'),
   getByDate: (date: string) => fetchAPI<any[]>(`/history/${date}`),
-  create: (action: string, details?: string) =>
+  create: (action: string, details?: string, sessionData?: any) =>
     fetchAPI<any>('/history', {
       method: 'POST',
-      body: JSON.stringify({ action, details }),
+      body: JSON.stringify({ 
+        action, 
+        details,
+        duration: sessionData?.duration,
+        startTime: sessionData?.startTime,
+        endTime: sessionData?.endTime,
+      }),
     }),
 };

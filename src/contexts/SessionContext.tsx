@@ -13,32 +13,76 @@ export interface DayData {
 
 interface SessionContextType {
   sessions: DayData[];
-  addSession: (duration: number) => void;
+  addSession: (duration: number, startTime: string, endTime: string) => void;
   getSessionsForDate: (date: Date) => Session[];
   getLevelForDate: (date: Date) => number;
+  fetchSessions: () => Promise<void>;
+  isLoading: boolean;
 }
 
 const SessionContext = createContext<SessionContextType | undefined>(undefined);
 
 const STORAGE_KEY = "focus-sessions";
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
 export const SessionProvider = ({ children }: { children: ReactNode }) => {
-  const [sessions, setSessions] = useState<DayData[]>(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    return stored ? JSON.parse(stored) : [];
-  });
+  const [sessions, setSessions] = useState<DayData[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
+  // Fetch sessions from backend on mount
+  useEffect(() => {
+    fetchSessions();
+  }, []);
+
+  // Save to localStorage whenever sessions change
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions));
   }, [sessions]);
 
-  const addSession = (durationSeconds: number) => {
+  const fetchSessions = async () => {
+    try {
+      setIsLoading(true);
+      const response = await fetch(`${API_BASE_URL}/history`);
+      if (!response.ok) throw new Error("Failed to fetch history");
+      
+      const historyData = await response.json();
+      
+      // Convert backend history to DayData format
+      const grouped = historyData.reduce((acc: { [key: string]: Session[] }, item: any) => {
+        if (item.date && item.action === 'focus_session') {
+          if (!acc[item.date]) {
+            acc[item.date] = [];
+          }
+          acc[item.date].push({
+            start: item.startTime || '00:00',
+            end: item.endTime || '00:00',
+            duration: item.duration || 0,
+          });
+        }
+        return acc;
+      }, {});
+      
+      const sessionsData = Object.entries(grouped).map(([date, sessions]) => ({
+        date,
+        sessions: sessions as Session[]
+      }));
+      
+      setSessions(sessionsData);
+    } catch (error) {
+      console.error("Error fetching sessions from backend:", error);
+      // Fall back to localStorage if backend fails
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        setSessions(JSON.parse(stored));
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const addSession = (durationSeconds: number, startTime: string, endTime: string) => {
     const now = new Date();
     const dateKey = now.toISOString().split("T")[0];
-    const endTime = now.toTimeString().slice(0, 5);
-    
-    const startDate = new Date(now.getTime() - durationSeconds * 1000);
-    const startTime = startDate.toTimeString().slice(0, 5);
     
     const durationMinutes = Math.round(durationSeconds / 60);
 
@@ -79,7 +123,7 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <SessionContext.Provider value={{ sessions, addSession, getSessionsForDate, getLevelForDate }}>
+    <SessionContext.Provider value={{ sessions, addSession, getSessionsForDate, getLevelForDate, fetchSessions, isLoading }}>
       {children}
     </SessionContext.Provider>
   );
