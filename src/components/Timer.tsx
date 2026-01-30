@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Play, Pause, RotateCcw, Save } from "lucide-react";
 import { useSession } from "@/contexts/SessionContext";
+import { historyAPI } from "@/lib/api";
 import { toast } from "sonner";
 import Counter from "@/components/ui/counter";
 
@@ -41,11 +42,27 @@ const Timer = () => {
   const minutes = Math.floor((time % 3600) / 60);
   const seconds = time % 60;
 
-  const handleSaveSession = () => {
+  const handleSaveSession = async () => {
     if (time > 0) {
-      addSession(time);
-      const mins = Math.round(time / 60);
-      toast.success(`Session saved: ${mins > 0 ? mins + "m" : time + "s"}`);
+      try {
+        addSession(time);
+        
+        // Save to backend
+        const mins = Math.round(time / 60);
+        const result = await historyAPI.create(
+          'focus_session',
+          `Completed a ${mins} minute focus session`
+        );
+        
+        if (result.success) {
+          toast.success(`Session saved: ${mins > 0 ? mins + "m" : time + "s"}`);
+        } else {
+          toast.error(result.error || 'Failed to save session');
+        }
+      } catch (error) {
+        toast.error('Error saving session');
+        console.error(error);
+      }
       setIsRunning(false);
       setTime(0);
     }

@@ -60,7 +60,7 @@ const NotesList = () => {
   const { 
     selectedFolderId, 
     selectedNoteId, 
-    getNotesByFolder, 
+    notes,
     createNote, 
     deleteNote, 
     selectNote,
@@ -68,7 +68,17 @@ const NotesList = () => {
   } = useNotes();
 
   const folder = getSelectedFolder();
-  const notes = selectedFolderId ? getNotesByFolder(selectedFolderId) : [];
+  const filteredNotes = notes;
+
+  const handleCreateNote = async () => {
+    if (selectedFolderId) {
+      await createNote("Untitled", "");
+    }
+  };
+
+  const handleDeleteNote = async (noteId: string) => {
+    await deleteNote(noteId);
+  };
 
   if (!selectedFolderId) {
     return (
@@ -88,10 +98,7 @@ const NotesList = () => {
         <Button
           variant="ghost"
           size="icon"
-          onClick={() => {
-            const note = createNote(selectedFolderId);
-            selectNote(note.id);
-          }}
+          onClick={handleCreateNote}
           title="New Note"
         >
           <Plus className="w-4 h-4" />
@@ -101,7 +108,7 @@ const NotesList = () => {
       {/* Notes List */}
       <div className="flex-1 overflow-y-auto space-y-1">
         <AnimatePresence mode="popLayout">
-          {notes.length === 0 ? (
+          {filteredNotes.length === 0 ? (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -110,14 +117,14 @@ const NotesList = () => {
               No notes yet. Create one!
             </motion.div>
           ) : (
-            notes.map((note, index) => (
+            filteredNotes.map((note, index) => (
               <AnimatedNoteItem
-                key={note.id}
-                noteId={note.id}
+                key={note._id || note.id}
+                noteId={note._id || note.id || ""}
                 title={note.title}
-                isSelected={note.id === selectedNoteId}
-                onClick={() => selectNote(note.id)}
-                onDelete={() => deleteNote(note.id)}
+                isSelected={(note._id || note.id) === selectedNoteId}
+                onClick={() => selectNote(note._id || note.id || null)}
+                onDelete={() => handleDeleteNote(note._id || note.id || "")}
                 index={index}
               />
             ))

@@ -13,14 +13,16 @@ import {
 
 const NotesContent = () => {
   const navigate = useNavigate();
-  const { getSelectedNote, updateNote, selectedNoteId, selectedFolderId, createNote, selectNote } = useNotes();
+  const { getSelectedNote, updateNote, selectedNoteId, selectedFolderId, createNote, selectNote, loading } = useNotes();
   
   const selectedNote = getSelectedNote();
 
-  const handleCreateNote = () => {
+  const handleCreateNote = async () => {
     if (selectedFolderId) {
-      const note = createNote(selectedFolderId);
-      selectNote(note.id);
+      const note = await createNote("Untitled", "");
+      if (note) {
+        selectNote(note._id || note.id || "");
+      }
     }
   };
 
@@ -76,14 +78,18 @@ const NotesContent = () => {
 
           {/* Editor Area */}
           <ResizablePanel defaultSize={65} minSize={40}>
-            <main className="h-full p-6 overflow-hidden">
-              {selectedNote ? (
+            <main className="h-95vh p-6 overflow-hidden">
+              {loading ? (
+                <div className="h-full flex items-center justify-center text-muted-foreground">
+                  <p>Loading notes...</p>
+                </div>
+              ) : selectedNote ? (
                 <MarkdownEditor
                   key={selectedNoteId}
                   content={selectedNote.content}
                   title={selectedNote.title}
-                  onContentChange={(content) => updateNote(selectedNote.id, { content })}
-                  onTitleChange={(title) => updateNote(selectedNote.id, { title })}
+                  onContentChange={(content) => updateNote(selectedNote._id || selectedNote.id || "", { content })}
+                  onTitleChange={(title) => updateNote(selectedNote._id || selectedNote.id || "", { title })}
                 />
               ) : (
                 <div className="h-full flex flex-col items-center justify-center text-muted-foreground">

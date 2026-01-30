@@ -32,7 +32,7 @@ interface MarkdownEditorProps {
 }
 
 const MarkdownEditor = ({ content, title, onContentChange, onTitleChange }: MarkdownEditorProps) => {
-  const [isPreview, setIsPreview] = useState(false);
+  const [isPreview, setIsPreview] = useState(true);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editableTitle, setEditableTitle] = useState(title);
   const textareaRef = useRef<HTMLTextAreaElement>(null);

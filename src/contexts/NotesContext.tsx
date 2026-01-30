@@ -1,16 +1,19 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { notesAPI, foldersAPI } from "@/lib/api";
+import { toast } from "sonner";
 
 export interface Note {
-  id: string;
+  _id?: string;
+  id?: string;
   title: string;
   content: string;
-  folderId: string;
   createdAt: Date;
-  updatedAt: Date;
+  updatedAt?: Date;
 }
 
 export interface NoteFolder {
-  id: string;
+  _id?: string;
+  id?: string;
   name: string;
   color: string;
   createdAt: Date;
@@ -21,32 +24,28 @@ interface NotesContextType {
   notes: Note[];
   selectedFolderId: string | null;
   selectedNoteId: string | null;
+  loading: boolean;
   
   // Folder CRUD
-  createFolder: (name: string, color?: string) => NoteFolder;
-  updateFolder: (id: string, updates: Partial<Pick<NoteFolder, 'name' | 'color'>>) => void;
-  deleteFolder: (id: string) => void;
+  createFolder: (name: string, color?: string) => Promise<NoteFolder | null>;
+  updateFolder: (id: string, updates: Partial<Pick<NoteFolder, 'name' | 'color'>>) => Promise<void>;
+  deleteFolder: (id: string) => Promise<void>;
   
   // Note CRUD
-  createNote: (folderId: string, title?: string) => Note;
-  updateNote: (id: string, updates: Partial<Pick<Note, 'title' | 'content'>>) => void;
-  deleteNote: (id: string) => void;
+  createNote: (title?: string, content?: string) => Promise<Note | null>;
+  updateNote: (id: string, updates: Partial<Pick<Note, 'title' | 'content'>>) => Promise<void>;
+  deleteNote: (id: string) => Promise<void>;
   
   // Selection
   selectFolder: (id: string | null) => void;
   selectNote: (id: string | null) => void;
   
   // Getters
-  getNotesByFolder: (folderId: string) => Note[];
   getSelectedNote: () => Note | null;
   getSelectedFolder: () => NoteFolder | null;
 }
 
 const NotesContext = createContext<NotesContextType | null>(null);
-
-const STORAGE_KEY = "notes-data";
-
-const generateId = () => Math.random().toString(36).substring(2, 9);
 
 const folderColors = [
   "#5227FF", // Purple
@@ -67,105 +66,195 @@ export const NotesProvider = ({ children }: NotesProviderProps) => {
   const [notes, setNotes] = useState<Note[]>([]);
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  // Load from localStorage
-  useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      try {
-        const data = JSON.parse(stored);
-        setFolders(data.folders?.map((f: NoteFolder) => ({
+  // Load folders and notes from backend
+  const loadFolders = async () => {
+    try {
+      const result = await foldersAPI.getAll();
+      if (result.success) {
+        const data = result.data || [];
+        const mappedFolders = data.map((f: any) => ({
           ...f,
+          id: f._id || f.id,
           createdAt: new Date(f.createdAt)
-        })) || []);
-        setNotes(data.notes?.map((n: Note) => ({
-          ...n,
-          createdAt: new Date(n.createdAt),
-          updatedAt: new Date(n.updatedAt)
-        })) || []);
-      } catch (e) {
-        console.error("Failed to parse notes data", e);
+        }));
+        setFolders(mappedFolders);
+        
+        // Select first folder by default
+        if (mappedFolders.length > 0 && !selectedFolderId) {
+          setSelectedFolderId(mappedFolders[0]._id || mappedFolders[0].id);
+        }
       }
-    } else {
-      // Initialize with a default folder
-      const defaultFolder: NoteFolder = {
-        id: generateId(),
-        name: "My Notes",
-        color: folderColors[0],
-        createdAt: new Date()
-      };
-      setFolders([defaultFolder]);
-      
-      const defaultNote: Note = {
-        id: generateId(),
-        title: "Welcome",
-        content: "# Welcome to Notes\n\nStart writing your thoughts here!\n\n## Features\n- **Bold** and *italic* text\n- Images and videos from URLs\n- Organized folders",
-        folderId: defaultFolder.id,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      };
-      setNotes([defaultNote]);
+    } catch (error) {
+      console.error("Error loading folders:", error);
     }
+  };
+
+  const loadNotes = async () => {
+    try {
+      const result = await notesAPI.getAll();
+      if (result.success) {
+        const data = result.data || [];
+        const mappedNotes = data.map((n: any) => ({
+          ...n,
+          id: n._id || n.id,
+          createdAt: new Date(n.createdAt),
+          updatedAt: n.updatedAt ? new Date(n.updatedAt) : new Date(n.createdAt)
+        }));
+        setNotes(mappedNotes);
+      }
+    } catch (error) {
+      console.error("Error loading notes:", error);
+    }
+  };
+
+  // Load data on mount
+  useEffect(() => {
+    const loadData = async () => {
+      setLoading(true);
+      await loadFolders();
+      await loadNotes();
+      
+      // If no folders exist, create a default dummy folder
+      const foldersResult = await foldersAPI.getAll();
+      if (foldersResult.success && (!foldersResult.data || foldersResult.data.length === 0)) {
+        try {
+          const defaultFolder = await foldersAPI.create("Notes", "#5227FF");
+          if (defaultFolder.success && defaultFolder.data) {
+            const newFolder = {
+              ...defaultFolder.data,
+              id: defaultFolder.data._id,
+              createdAt: new Date(defaultFolder.data.createdAt)
+            };
+            setFolders([newFolder]);
+            setSelectedFolderId(newFolder._id || newFolder.id);
+          }
+        } catch (error) {
+          console.error("Error creating default folder:", error);
+        }
+      }
+      
+      setLoading(false);
+    };
+    loadData();
   }, []);
 
-  // Save to localStorage
-  useEffect(() => {
-    if (folders.length > 0 || notes.length > 0) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ folders, notes }));
-    }
-  }, [folders, notes]);
-
   // Folder CRUD
-  const createFolder = (name: string, color?: string): NoteFolder => {
-    const newFolder: NoteFolder = {
-      id: generateId(),
-      name,
-      color: color || folderColors[folders.length % folderColors.length],
-      createdAt: new Date()
-    };
-    setFolders(prev => [...prev, newFolder]);
-    return newFolder;
+  const createFolder = async (name: string, color?: string): Promise<NoteFolder | null> => {
+    try {
+      const selectedColor = color || folderColors[folders.length % folderColors.length];
+      const result = await foldersAPI.create(name, selectedColor);
+      if (result.success && result.data) {
+        const newFolder = {
+          ...result.data,
+          id: result.data._id,
+          createdAt: new Date(result.data.createdAt)
+        };
+        setFolders(prev => [...prev, newFolder]);
+        toast.success("Folder created");
+        return newFolder;
+      } else {
+        toast.error(result.error || "Failed to create folder");
+      }
+    } catch (error) {
+      toast.error("Error creating folder");
+      console.error(error);
+    }
+    return null;
   };
 
-  const updateFolder = (id: string, updates: Partial<Pick<NoteFolder, 'name' | 'color'>>) => {
-    setFolders(prev => prev.map(f => 
-      f.id === id ? { ...f, ...updates } : f
-    ));
+  const updateFolder = async (id: string, updates: Partial<Pick<NoteFolder, 'name' | 'color'>>) => {
+    try {
+      const result = await foldersAPI.update(id, updates);
+      if (result.success) {
+        setFolders(prev => prev.map(f => 
+          (f._id === id || f.id === id) ? { ...f, ...updates } : f
+        ));
+        toast.success("Folder updated");
+      } else {
+        toast.error(result.error || "Failed to update folder");
+      }
+    } catch (error) {
+      toast.error("Error updating folder");
+      console.error(error);
+    }
   };
 
-  const deleteFolder = (id: string) => {
-    setFolders(prev => prev.filter(f => f.id !== id));
-    setNotes(prev => prev.filter(n => n.folderId !== id));
-    if (selectedFolderId === id) {
-      setSelectedFolderId(null);
-      setSelectedNoteId(null);
+  const deleteFolder = async (id: string) => {
+    try {
+      const result = await foldersAPI.delete(id);
+      if (result.success) {
+        setFolders(prev => prev.filter(f => (f._id !== id && f.id !== id)));
+        setNotes(prev => prev.filter(n => n.id !== id));
+        if (selectedFolderId === id) {
+          setSelectedFolderId(null);
+          setSelectedNoteId(null);
+        }
+        toast.success("Folder deleted");
+      } else {
+        toast.error(result.error || "Failed to delete folder");
+      }
+    } catch (error) {
+      toast.error("Error deleting folder");
+      console.error(error);
     }
   };
 
   // Note CRUD
-  const createNote = (folderId: string, title?: string): Note => {
-    const newNote: Note = {
-      id: generateId(),
-      title: title || "Untitled",
-      content: "",
-      folderId,
-      createdAt: new Date(),
-      updatedAt: new Date()
-    };
-    setNotes(prev => [...prev, newNote]);
-    return newNote;
+  const createNote = async (title?: string, content?: string): Promise<Note | null> => {
+    try {
+      const result = await notesAPI.create(title || "Untitled", content || "");
+      if (result.success && result.data) {
+        const newNote = {
+          ...result.data,
+          id: result.data._id,
+          createdAt: new Date(result.data.createdAt),
+          updatedAt: new Date(result.data.updatedAt || result.data.createdAt)
+        };
+        setNotes(prev => [...prev, newNote]);
+        toast.success("Note created");
+        return newNote;
+      } else {
+        toast.error(result.error || "Failed to create note");
+      }
+    } catch (error) {
+      toast.error("Error creating note");
+      console.error(error);
+    }
+    return null;
   };
 
-  const updateNote = (id: string, updates: Partial<Pick<Note, 'title' | 'content'>>) => {
-    setNotes(prev => prev.map(n => 
-      n.id === id ? { ...n, ...updates, updatedAt: new Date() } : n
-    ));
+  const updateNote = async (id: string, updates: Partial<Pick<Note, 'title' | 'content'>>) => {
+    try {
+      const result = await notesAPI.update(id, updates);
+      if (result.success) {
+        setNotes(prev => prev.map(n => 
+          (n._id === id || n.id === id) ? { ...n, ...updates, updatedAt: new Date() } : n
+        ));
+      } else {
+        toast.error(result.error || "Failed to update note");
+      }
+    } catch (error) {
+      console.error("Error updating note:", error);
+    }
   };
 
-  const deleteNote = (id: string) => {
-    setNotes(prev => prev.filter(n => n.id !== id));
-    if (selectedNoteId === id) {
-      setSelectedNoteId(null);
+  const deleteNote = async (id: string) => {
+    try {
+      const result = await notesAPI.delete(id);
+      if (result.success) {
+        setNotes(prev => prev.filter(n => (n._id !== id && n.id !== id)));
+        if (selectedNoteId === id) {
+          setSelectedNoteId(null);
+        }
+        toast.success("Note deleted");
+      } else {
+        toast.error(result.error || "Failed to delete note");
+      }
+    } catch (error) {
+      toast.error("Error deleting note");
+      console.error(error);
     }
   };
 
@@ -180,16 +269,12 @@ export const NotesProvider = ({ children }: NotesProviderProps) => {
   };
 
   // Getters
-  const getNotesByFolder = (folderId: string) => {
-    return notes.filter(n => n.folderId === folderId);
-  };
-
   const getSelectedNote = () => {
-    return notes.find(n => n.id === selectedNoteId) || null;
+    return notes.find(n => (n._id === selectedNoteId || n.id === selectedNoteId)) || null;
   };
 
   const getSelectedFolder = () => {
-    return folders.find(f => f.id === selectedFolderId) || null;
+    return folders.find(f => (f._id === selectedFolderId || f.id === selectedFolderId)) || null;
   };
 
   return (
@@ -198,6 +283,7 @@ export const NotesProvider = ({ children }: NotesProviderProps) => {
       notes,
       selectedFolderId,
       selectedNoteId,
+      loading,
       createFolder,
       updateFolder,
       deleteFolder,
@@ -206,7 +292,6 @@ export const NotesProvider = ({ children }: NotesProviderProps) => {
       deleteNote,
       selectFolder,
       selectNote,
-      getNotesByFolder,
       getSelectedNote,
       getSelectedFolder
     }}>

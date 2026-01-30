@@ -1,12 +1,13 @@
-import { useState, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Plus, X } from "lucide-react";
-import { motion, AnimatePresence, useInView } from "motion/react";
+import { motion, AnimatePresence } from "motion/react";
 
 interface Todo {
-  id: number;
+  _id?: string;
+  id?: number;
   text: string;
   completed: boolean;
 }
@@ -19,15 +20,11 @@ interface AnimatedTodoProps {
 }
 
 const AnimatedTodo = ({ todo, onToggle, onDelete, index }: AnimatedTodoProps) => {
-  const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { amount: 0.5, once: false });
-
   return (
     <motion.div
-      ref={ref}
       layout
       initial={{ scale: 0.8, opacity: 0, y: 20 }}
-      animate={inView ? { scale: 1, opacity: 1, y: 0 } : { scale: 0.8, opacity: 0, y: 20 }}
+      animate={{ scale: 1, opacity: 1, y: 0 }}
       exit={{ scale: 0.8, opacity: 0, x: -100 }}
       transition={{ 
         duration: 0.25, 
@@ -43,11 +40,12 @@ const AnimatedTodo = ({ todo, onToggle, onDelete, index }: AnimatedTodoProps) =>
       />
       <motion.span
         animate={{ opacity: todo.completed ? 0.5 : 1 }}
+        transition={{ duration: 0.2 }}
         className={`font-body text-sm flex-1 ${
           todo.completed ? "line-through text-muted-foreground" : "text-foreground"
         }`}
       >
-        {todo.text}
+        {(todo as any).title || todo.text}
       </motion.span>
       <Button
         variant="ghost"
@@ -62,27 +60,65 @@ const AnimatedTodo = ({ todo, onToggle, onDelete, index }: AnimatedTodoProps) =>
 };
 
 const TodoList = () => {
-  const [todos, setTodos] = useState<Todo[]>([
-    { id: 1, text: "Deep work session", completed: false },
-    { id: 2, text: "Review project notes", completed: true },
-    { id: 3, text: "Plan tomorrow", completed: false },
-  ]);
+  const [todos, setTodos] = useState<Todo[]>([]);
   const [newTodo, setNewTodo] = useState("");
 
-  const addTodo = () => {
-    if (newTodo.trim()) {
-      setTodos([...todos, { id: Date.now(), text: newTodo.trim(), completed: false }]);
-      setNewTodo("");
+  // Fetch todos from backend
+  const fetchTodos = async () => {
+    try {
+      const res = await fetch("http://localhost:5000/api/todos");
+      if (!res.ok) throw new Error(`Failed to fetch todos: ${res.statusText}`);
+      const data = await res.json();
+      setTodos(data);
+    } catch (error) {
+      console.error("Error fetching todos:", error);
     }
   };
 
-  const toggleTodo = (id: number) => {
-    setTodos(todos.map((t) => (t.id === id ? { ...t, completed: !t.completed } : t)));
+  // Add todo to backend
+  const addTodo = async () => {
+    if (newTodo.trim()) {
+      try {
+        const res = await fetch("http://localhost:5000/api/todos", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title: newTodo.trim() })
+        });
+        if (res.ok) {
+          await fetchTodos();
+          setNewTodo("");
+        } else {
+          console.error("Failed to add todo:", res.statusText);
+        }
+      } catch (error) {
+        console.error("Error adding todo:", error);
+      }
+    }
   };
 
-  const deleteTodo = (id: number) => {
-    setTodos(todos.filter((t) => t.id !== id));
+  // Toggle todo completed in backend
+  const toggleTodo = async (id: string) => {
+    const todo = todos.find((t) => t._id === id);
+    if (!todo) return;
+    await fetch(`http://localhost:5000/api/todos/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ completed: !todo.completed })
+    });
+    await fetchTodos();
   };
+
+  // Delete todo from backend
+  const deleteTodo = async (id: string) => {
+    await fetch(`http://localhost:5000/api/todos/${id}`, {
+      method: "DELETE"
+    });
+    await fetchTodos();
+  };
+  // Load todos on mount
+  useEffect(() => {
+    fetchTodos();
+  }, []);
 
   return (
     <div className="border border-border p-6 bg-card">
@@ -99,11 +135,11 @@ const TodoList = () => {
         <AnimatePresence mode="popLayout">
           {todos.map((todo, index) => (
             <AnimatedTodo
-              key={todo.id}
+              key={todo._id || todo.id}
               todo={todo}
               index={index}
-              onToggle={() => toggleTodo(todo.id)}
-              onDelete={() => deleteTodo(todo.id)}
+              onToggle={() => toggleTodo(todo._id || "")}
+              onDelete={() => deleteTodo(todo._id || "")}
             />
           ))}
         </AnimatePresence>

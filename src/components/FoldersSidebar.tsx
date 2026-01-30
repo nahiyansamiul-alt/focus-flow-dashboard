@@ -27,13 +27,13 @@ const folderColors = [
 const FoldersSidebar = () => {
   const { 
     folders, 
+    notes,
     selectedFolderId, 
     selectedNoteId,
     selectFolder, 
     createFolder, 
     updateFolder, 
-    deleteFolder,
-    getNotesByFolder 
+    deleteFolder
   } = useNotes();
 
   const [isCreating, setIsCreating] = useState(false);
@@ -47,25 +47,27 @@ const FoldersSidebar = () => {
     selectFolder(folderId);
   };
 
-  const handleCreateFolder = () => {
+  const handleCreateFolder = async () => {
     if (newFolderName.trim()) {
-      const folder = createFolder(newFolderName.trim(), selectedColor);
-      selectFolder(folder.id);
+      const folder = await createFolder(newFolderName.trim(), selectedColor);
+      if (folder) {
+        selectFolder(folder._id || folder.id || "");
+      }
       setNewFolderName("");
       setIsCreating(false);
     }
   };
 
-  const handleUpdateFolder = (id: string) => {
+  const handleUpdateFolder = async (id: string) => {
     if (editingName.trim()) {
-      updateFolder(id, { name: editingName.trim() });
+      await updateFolder(id, { name: editingName.trim() });
       setEditingId(null);
       setEditingName("");
     }
   };
 
-  const handleDeleteFolder = (id: string) => {
-    deleteFolder(id);
+  const handleDeleteFolder = async (id: string) => {
+    await deleteFolder(id);
     setDeleteConfirmId(null);
   };
 
@@ -84,16 +86,16 @@ const FoldersSidebar = () => {
         </Button>
       </div>
 
-      {/* Folders List */}
       <div className="flex-1 overflow-y-auto pt-2">
         <div className="flex flex-col gap-1">
           <AnimatePresence mode="popLayout">
             {folders.map((folder, index) => {
-              const notes = getNotesByFolder(folder.id);
+              const folderNotes = notes.filter(n => n.id === (folder._id || folder.id) || n._id === (folder._id || folder.id));
+              const folderId = folder._id || folder.id || "";
               
               return (
                 <motion.div
-                  key={folder.id}
+                  key={folderId}
                   layout
                   initial={{ scale: 0.95, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
@@ -104,17 +106,17 @@ const FoldersSidebar = () => {
                   <div 
                     className={cn(
                       "flex flex-col items-center gap-1 p-3 rounded-lg cursor-pointer transition-colors group",
-                      selectedFolderId === folder.id
+                      selectedFolderId === folderId
                         ? "bg-muted" 
                         : "hover:bg-muted/50"
                     )}
-                    onClick={() => handleFolderClick(folder.id)}
+                    onClick={() => handleFolderClick(folderId)}
                   >
                     {/* Top row with count and actions */}
                     <div className="w-full flex items-center justify-between">
                       {/* Note count badge */}
                       <span className="text-xs text-muted-foreground">
-                        {notes.length}
+                        {folderNotes.length}
                       </span>
 
                       {/* Actions */}
@@ -125,7 +127,7 @@ const FoldersSidebar = () => {
                           className="h-5 w-5"
                           onClick={(e) => {
                             e.stopPropagation();
-                            setEditingId(folder.id);
+                            setEditingId(folderId);
                             setEditingName(folder.name);
                           }}
                         >

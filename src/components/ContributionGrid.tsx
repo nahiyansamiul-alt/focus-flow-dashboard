@@ -7,6 +7,8 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { useSession, Session } from "@/contexts/SessionContext";
+import { useReminders } from "@/contexts/RemindersContext";
+import { ReminderPopup } from "./ReminderPopup";
 
 interface DayData {
   level: number;
@@ -16,7 +18,9 @@ interface DayData {
 
 const ContributionGrid = () => {
   const [selectedDay, setSelectedDay] = useState<DayData | null>(null);
+  const [reminderPopupOpen, setReminderPopupOpen] = useState(false);
   const { getSessionsForDate, getLevelForDate } = useSession();
+  const { reminders, getRemindersByDate } = useReminders();
 
   // Generate grid data for 20 weeks (140 days)
   const data = useMemo((): DayData[] => {
@@ -50,6 +54,10 @@ const ContributionGrid = () => {
       case 4: return "bg-contribution-max";
       default: return "bg-muted";
     }
+  };
+
+  const hasReminder = (date: Date): boolean => {
+    return getRemindersByDate(date).length > 0;
   };
 
   const formatDate = (date: Date) => {
@@ -106,20 +114,34 @@ const ContributionGrid = () => {
         <div className="flex gap-1">
           {weeks.map((week, weekIdx) => (
             <div key={weekIdx} className="flex flex-col gap-1">
-              {week.map((day, dayIdx) => (
-                <div
-                  key={dayIdx}
-                  className={`w-3 h-3 ${getLevelClass(day.level)} transition-colors hover:ring-1 hover:ring-foreground cursor-pointer`}
-                  title={`${day.level} hour${day.level !== 1 ? "s" : ""}`}
-                  onClick={() => setSelectedDay(day)}
-                />
-              ))}
+              {week.map((day, dayIdx) => {
+                const dayHasReminder = hasReminder(day.date);
+                return (
+                  <div
+                    key={dayIdx}
+                    className={`w-3 h-3 relative ${getLevelClass(day.level)} transition-all hover:ring-1 hover:ring-foreground cursor-pointer rounded-sm`}
+                    title={`${day.level} hour${day.level !== 1 ? "s" : ""}${dayHasReminder ? " • Has reminder" : ""}`}
+                    onClick={() => {
+                      if (dayHasReminder) {
+                        setSelectedDay(day);
+                        setReminderPopupOpen(true);
+                      } else {
+                        setSelectedDay(day);
+                      }
+                    }}
+                  >
+                    {dayHasReminder && (
+                      <div className="absolute inset-0 bg-red-500 rounded-sm animate-pulse opacity-70" />
+                    )}
+                  </div>
+                );
+              })}
             </div>
           ))}
         </div>
       </div>
 
-      <Dialog open={!!selectedDay} onOpenChange={() => setSelectedDay(null)}>
+      <Dialog open={!!selectedDay && !reminderPopupOpen} onOpenChange={() => setSelectedDay(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="font-display text-xl">
@@ -162,6 +184,13 @@ const ContributionGrid = () => {
           )}
         </DialogContent>
       </Dialog>
+
+      <ReminderPopup
+        isOpen={reminderPopupOpen && !!selectedDay}
+        onOpenChange={setReminderPopupOpen}
+        reminders={selectedDay ? getRemindersByDate(selectedDay.date) : []}
+        selectedDate={selectedDay?.date || null}
+      />
     </>
   );
 };
