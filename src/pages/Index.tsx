@@ -6,6 +6,8 @@ import TodoList from "@/components/TodoList";
 import RemindersList from "@/components/RemindersList";
 import ContributionGrid from "@/components/ContributionGrid";
 import Stats from "@/components/Stats";
+import MotivationalBox from "@/components/MotivationalBox";
+import KeyboardShortcutsModal, { KeyboardShortcutsButton } from "@/components/KeyboardShortcutsModal";
 import { ReminderForm } from "@/components/ReminderForm";
 import { SessionProvider } from "@/contexts/SessionContext";
 import { RemindersProvider } from "@/contexts/RemindersContext";
@@ -14,6 +16,7 @@ import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 const IndexContent = () => {
   const navigate = useNavigate();
   const [reminderFormOpen, setReminderFormOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
 
   useKeyboardShortcuts({
     onNewReminder: () => setReminderFormOpen(true),
@@ -37,10 +40,11 @@ const IndexContent = () => {
 
       {/* Main Grid Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12">
-        {/* Left Column - Timer & Clock */}
+        {/* Left Column - Timer, Clock & Motivation */}
         <div className="lg:col-span-5 space-y-8">
           <Timer />
           <Clock />
+          <MotivationalBox />
         </div>
 
         {/* Right Column - Todo, Reminders & Stats */}
@@ -58,10 +62,15 @@ const IndexContent = () => {
 
       {/* Footer */}
       <footer className="mt-16 pt-8 border-t border-border">
-        <p className="font-body text-sm text-muted-foreground">
-          Built with intention. Stay focused. <span className="text-xs opacity-50">Tip: Press Ctrl+Shift+R for reminders</span>
-        </p>
+        <div className="flex items-center justify-between">
+          <p className="font-body text-sm text-muted-foreground">
+            Built with intention. Stay focused.
+          </p>
+          <KeyboardShortcutsButton onClick={() => setShortcutsOpen(true)} />
+        </div>
       </footer>
+
+      <KeyboardShortcutsModal isOpen={shortcutsOpen} onOpenChange={setShortcutsOpen} />
 
       <ReminderForm isOpen={reminderFormOpen} onOpenChange={setReminderFormOpen} />
     </div>
