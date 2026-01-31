@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 interface FolderProps {
   color?: string;
   size?: number;
   items?: React.ReactNode[];
   className?: string;
+  isOpen?: boolean; // Controlled open state
   onClick?: () => void;
 }
 
@@ -31,6 +32,7 @@ const Folder: React.FC<FolderProps> = ({
   size = 1, 
   items = [], 
   className = '',
+  isOpen: controlledOpen,
   onClick 
 }) => {
   const maxItems = 3;
@@ -39,10 +41,20 @@ const Folder: React.FC<FolderProps> = ({
     papers.push(null);
   }
 
-  const [open, setOpen] = useState(false);
+  // Use controlled state if provided, otherwise use internal state
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen !== undefined ? controlledOpen : internalOpen;
+
   const [paperOffsets, setPaperOffsets] = useState<{ x: number; y: number }[]>(
     Array.from({ length: maxItems }, () => ({ x: 0, y: 0 }))
   );
+
+  // Reset paper offsets when closing
+  useEffect(() => {
+    if (!open) {
+      setPaperOffsets(Array.from({ length: maxItems }, () => ({ x: 0, y: 0 })));
+    }
+  }, [open]);
 
   const folderBackColor = darkenColor(color, 0.08);
   const paper1 = darkenColor('#ffffff', 0.1);
@@ -50,9 +62,9 @@ const Folder: React.FC<FolderProps> = ({
   const paper3 = '#ffffff';
 
   const handleClick = () => {
-    setOpen(prev => !prev);
-    if (open) {
-      setPaperOffsets(Array.from({ length: maxItems }, () => ({ x: 0, y: 0 })));
+    // Only toggle internal state if not controlled
+    if (controlledOpen === undefined) {
+      setInternalOpen(prev => !prev);
     }
     onClick?.();
   };
