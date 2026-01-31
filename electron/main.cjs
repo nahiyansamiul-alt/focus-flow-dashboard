@@ -70,9 +70,9 @@ function createWindow() {
   mainWindow.loadURL(startUrl);
 
   // Open DevTools in development
-  if (isDev) {
-    mainWindow.webContents.openDevTools();
-  }
+  // if (isDev) {
+  //   mainWindow.webContents.openDevTools();
+  // }
 
   mainWindow.on('closed', () => {
     mainWindow = null;
