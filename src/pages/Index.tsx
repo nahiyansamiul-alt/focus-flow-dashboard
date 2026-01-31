@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import Timer from "@/components/Timer";
 import Clock from "@/components/Clock";
 import TodoList from "@/components/TodoList";
+import RemindersList from "@/components/RemindersList";
 import ContributionGrid from "@/components/ContributionGrid";
 import Stats from "@/components/Stats";
 import { ReminderForm } from "@/components/ReminderForm";
@@ -42,9 +43,10 @@ const IndexContent = () => {
           <Clock />
         </div>
 
-        {/* Right Column - Todo & Stats */}
+        {/* Right Column - Todo, Reminders & Stats */}
         <div className="lg:col-span-7 space-y-8">
           <TodoList />
+          <RemindersList />
           <Stats />
         </div>
       </div>

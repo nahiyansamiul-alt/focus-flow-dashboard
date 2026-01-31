@@ -200,6 +200,7 @@ const FoldersSidebar = () => {
                         color={folder.color}
                         size={0.5}
                         items={[]}
+                        isOpen={selectedFolderId === folderId}
                       />
                     </div>
                     

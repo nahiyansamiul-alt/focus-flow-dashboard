@@ -6,17 +6,13 @@ import NotesList from "@/components/NotesList";
 import MarkdownEditor from "@/components/MarkdownEditor";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { ArrowLeft, FileText, Plus, PanelLeftClose, PanelLeft } from "lucide-react";
-import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-} from "@/components/ui/resizable";
+import { ArrowLeft, FileText, Plus, FolderClosed, List } from "lucide-react";
 
 const NotesContent = () => {
   const navigate = useNavigate();
   const { getSelectedNote, updateNote, selectedNoteId, selectedFolderId, createNote, selectNote } = useNotes();
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isFoldersCollapsed, setIsFoldersCollapsed] = useState(false);
+  const [isNotesListCollapsed, setIsNotesListCollapsed] = useState(false);
   
   const selectedNote = getSelectedNote();
 
@@ -29,10 +25,17 @@ const NotesContent = () => {
     }
   };
 
+  // Calculate panel widths based on collapse states
+  const getFoldersWidth = () => isFoldersCollapsed ? "0px" : "200px";
+  const getNotesListWidth = () => {
+    if (!selectedFolderId || isNotesListCollapsed) return "0px";
+    return "240px";
+  };
+
   return (
     <div className="h-screen bg-background flex flex-col overflow-hidden">
       {/* Header */}
-      <header className="border-b border-border p-4 flex items-center gap-4 flex-shrink-0">
+      <header className="border-b border-border p-4 flex items-center gap-2 flex-shrink-0">
         <Button
           variant="ghost"
           size="icon"
@@ -41,15 +44,30 @@ const NotesContent = () => {
         >
           <ArrowLeft className="w-5 h-5" />
         </Button>
+        
+        {/* Folders Toggle */}
         <Button
-          variant="ghost"
+          variant={isFoldersCollapsed ? "outline" : "ghost"}
           size="icon"
-          onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-          title={isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          onClick={() => setIsFoldersCollapsed(!isFoldersCollapsed)}
+          title={isFoldersCollapsed ? "Show folders" : "Hide folders"}
         >
-          {isSidebarCollapsed ? <PanelLeft className="w-5 h-5" /> : <PanelLeftClose className="w-5 h-5" />}
+          <FolderClosed className="w-5 h-5" />
         </Button>
-        <h1 className="font-display text-3xl md:text-4xl font-bold tracking-tighter">
+        
+        {/* Notes List Toggle - only show when folder is selected */}
+        {selectedFolderId && (
+          <Button
+            variant={isNotesListCollapsed ? "outline" : "ghost"}
+            size="icon"
+            onClick={() => setIsNotesListCollapsed(!isNotesListCollapsed)}
+            title={isNotesListCollapsed ? "Show notes list" : "Hide notes list"}
+          >
+            <List className="w-5 h-5" />
+          </Button>
+        )}
+        
+        <h1 className="font-display text-3xl md:text-4xl font-bold tracking-tighter ml-2">
           NOTES
         </h1>
         <div className="flex-1" />
@@ -66,60 +84,52 @@ const NotesContent = () => {
         )}
       </header>
 
-      {/* Main Content with Resizable Panels */}
-      <div className="flex-1 overflow-hidden">
-        <ResizablePanelGroup direction="horizontal" className="h-full">
-          {/* Folders Sidebar - Collapsible */}
-          {!isSidebarCollapsed && (
-            <>
-              <ResizablePanel defaultSize={15} minSize={10} maxSize={25}>
-                <ScrollArea className="h-full">
-                  <div className="p-4 border-r border-border h-full">
-                    <FoldersSidebar />
-                  </div>
-                </ScrollArea>
-              </ResizablePanel>
+      {/* Main Content with Independent Panels */}
+      <div className="flex-1 overflow-hidden flex">
+        {/* Folders Sidebar */}
+        <div
+          className="h-full border-r border-border transition-all duration-300 ease-in-out overflow-hidden flex-shrink-0"
+          style={{ width: getFoldersWidth() }}
+        >
+          <ScrollArea className="h-full">
+            <div className="p-4 min-w-[200px]">
+              <FoldersSidebar />
+            </div>
+          </ScrollArea>
+        </div>
 
-              <ResizableHandle withHandle />
-            </>
-          )}
+        {/* Notes List */}
+        <div
+          className="h-full border-r border-border transition-all duration-300 ease-in-out overflow-hidden flex-shrink-0"
+          style={{ width: getNotesListWidth() }}
+        >
+          <ScrollArea className="h-full">
+            <div className="p-4 min-w-[240px]">
+              <NotesList />
+            </div>
+          </ScrollArea>
+        </div>
 
-          {/* Notes List - Only show when folder is selected */}
-          {!isSidebarCollapsed && selectedFolderId && (
-            <>
-              <ResizablePanel defaultSize={20} minSize={15} maxSize={35}>
-                <ScrollArea className="h-full">
-                  <div className="p-4 border-r border-border h-full">
-                    <NotesList />
-                  </div>
-                </ScrollArea>
-              </ResizablePanel>
-
-              <ResizableHandle withHandle />
-            </>
-          )}
-
-          {/* Editor Area */}
-          <ResizablePanel defaultSize={65} minSize={40}>
-            <main className="h-full p-6 overflow-hidden">
-              {selectedNote ? (
-                <MarkdownEditor
-                  key={selectedNoteId}
-                  content={selectedNote.content}
-                  title={selectedNote.title}
-                  onContentChange={(content) => updateNote(selectedNote._id || selectedNote.id || "", { content })}
-                  onTitleChange={(title) => updateNote(selectedNote._id || selectedNote.id || "", { title })}
-                />
-              ) : (
-                <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
-                  <FileText className="w-16 h-16 mb-4 opacity-50" />
-                  <p className="text-lg font-body">Select a note to start editing</p>
-                  <p className="text-sm mt-2">Or create a new one from a folder</p>
-                </div>
-              )}
-            </main>
-          </ResizablePanel>
-        </ResizablePanelGroup>
+        {/* Editor Area */}
+        <div className="flex-1 h-full overflow-hidden">
+          <main className="h-full p-6 overflow-hidden">
+            {selectedNote ? (
+              <MarkdownEditor
+                key={selectedNoteId}
+                content={selectedNote.content}
+                title={selectedNote.title}
+                onContentChange={(content) => updateNote(selectedNote._id || selectedNote.id || "", { content })}
+                onTitleChange={(title) => updateNote(selectedNote._id || selectedNote.id || "", { title })}
+              />
+            ) : (
+              <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
+                <FileText className="w-16 h-16 mb-4 opacity-50" />
+                <p className="text-lg font-body">Select a note to start editing</p>
+                <p className="text-sm mt-2">Or create a new one from a folder</p>
+              </div>
+            )}
+          </main>
+        </div>
       </div>
     </div>
   );
