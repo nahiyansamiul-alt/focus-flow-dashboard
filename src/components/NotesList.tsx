@@ -16,7 +16,7 @@ interface AnimatedNoteItemProps {
 
 const AnimatedNoteItem = ({ noteId, title, isSelected, onClick, onDelete, index }: AnimatedNoteItemProps) => {
   const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { amount: 0.5, once: false });
+  const inView = useInView(ref, { amount: 0.5, once: true });
 
   return (
     <motion.div
