@@ -32,8 +32,7 @@
           "x64"
         ]
       }
-    ],
-    "icon": "public/icon.png"
+    ]
   },
   "nsis": {
     "oneClick": false,
@@ -45,14 +44,12 @@
     "target": [
       "dmg",
       "zip"
-    ],
-    "icon": "public/icon.png"
+    ]
   },
   "linux": {
     "target": [
       "AppImage",
       "deb"
-    ],
-    "icon": "public/icon.png"
+    ]
   }
 }
