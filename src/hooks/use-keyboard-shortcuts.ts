@@ -7,6 +7,8 @@ interface KeyboardShortcuts {
   onSave?: () => void;
   onSearch?: () => void;
   onEscape?: () => void;
+  onToggleFolders?: () => void;
+  onToggleNotesList?: () => void;
 }
 
 export const useKeyboardShortcuts = (shortcuts: KeyboardShortcuts) => {
@@ -40,6 +42,18 @@ export const useKeyboardShortcuts = (shortcuts: KeyboardShortcuts) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
         e.preventDefault();
         shortcuts.onSearch?.();
+      }
+      
+      // Ctrl/Cmd + B: Toggle Folders Sidebar
+      if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
+        e.preventDefault();
+        shortcuts.onToggleFolders?.();
+      }
+      
+      // Ctrl/Cmd + L: Toggle Notes List
+      if ((e.ctrlKey || e.metaKey) && e.key === 'l') {
+        e.preventDefault();
+        shortcuts.onToggleNotesList?.();
       }
       
       // Escape: Close dialogs

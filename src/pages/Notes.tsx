@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { NotesProvider, useNotes } from "@/contexts/NotesContext";
 import FoldersSidebar from "@/components/FoldersSidebar";
@@ -7,6 +7,7 @@ import MarkdownEditor from "@/components/MarkdownEditor";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ArrowLeft, FileText, Plus, FolderClosed, List } from "lucide-react";
+import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 
 const NotesContent = () => {
   const navigate = useNavigate();
@@ -24,6 +25,14 @@ const NotesContent = () => {
       }
     }
   };
+
+  const toggleFolders = useCallback(() => setIsFoldersCollapsed(prev => !prev), []);
+  const toggleNotesList = useCallback(() => setIsNotesListCollapsed(prev => !prev), []);
+
+  useKeyboardShortcuts({
+    onToggleFolders: toggleFolders,
+    onToggleNotesList: toggleNotesList,
+  });
 
   // Calculate panel widths based on collapse states
   const getFoldersWidth = () => isFoldersCollapsed ? "0px" : "200px";
@@ -88,26 +97,50 @@ const NotesContent = () => {
       <div className="flex-1 overflow-hidden flex">
         {/* Folders Sidebar */}
         <div
-          className="h-full border-r border-border transition-all duration-300 ease-in-out overflow-hidden flex-shrink-0"
-          style={{ width: getFoldersWidth() }}
+          className="h-full border-r border-border overflow-hidden flex-shrink-0"
+          style={{ 
+            width: getFoldersWidth(),
+            transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+          }}
         >
-          <ScrollArea className="h-full">
-            <div className="p-4 min-w-[200px]">
-              <FoldersSidebar />
-            </div>
-          </ScrollArea>
+          <div 
+            className="h-full"
+            style={{
+              transform: isFoldersCollapsed ? 'translateX(-100%)' : 'translateX(0)',
+              opacity: isFoldersCollapsed ? 0 : 1,
+              transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease-out',
+            }}
+          >
+            <ScrollArea className="h-full">
+              <div className="p-4 min-w-[200px]">
+                <FoldersSidebar />
+              </div>
+            </ScrollArea>
+          </div>
         </div>
 
         {/* Notes List */}
         <div
-          className="h-full border-r border-border transition-all duration-300 ease-in-out overflow-hidden flex-shrink-0"
-          style={{ width: getNotesListWidth() }}
+          className="h-full border-r border-border overflow-hidden flex-shrink-0"
+          style={{ 
+            width: getNotesListWidth(),
+            transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+          }}
         >
-          <ScrollArea className="h-full">
-            <div className="p-4 min-w-[240px]">
-              <NotesList />
-            </div>
-          </ScrollArea>
+          <div 
+            className="h-full"
+            style={{
+              transform: isNotesListCollapsed ? 'translateX(-100%)' : 'translateX(0)',
+              opacity: isNotesListCollapsed ? 0 : 1,
+              transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease-out',
+            }}
+          >
+            <ScrollArea className="h-full">
+              <div className="p-4 min-w-[240px]">
+                <NotesList />
+              </div>
+            </ScrollArea>
+          </div>
         </div>
 
         {/* Editor Area */}
