@@ -81,63 +81,66 @@ const ContributionGrid = () => {
 
   return (
     <>
-      <div className="border border-border p-6 bg-card">
-        <div className="flex items-center justify-between mb-6">
+      <div className="border border-border p-4 md:p-6 bg-card overflow-hidden">
+        <div className="flex items-center justify-between mb-4 md:mb-6">
           <span className="font-body text-xs uppercase tracking-widest text-muted-foreground">
             Activity
           </span>
-          <div className="flex items-center gap-2">
-            <span className="font-body text-xs text-muted-foreground">Less</span>
-            <div className="flex gap-1">
+          <div className="flex items-center gap-1 md:gap-2">
+            <span className="font-body text-[10px] md:text-xs text-muted-foreground">Less</span>
+            <div className="flex gap-0.5 md:gap-1">
               {[0, 1, 2, 3, 4].map((level) => (
-                <div key={level} className={`w-3 h-3 ${getLevelClass(level)}`} />
+                <div key={level} className={`w-2 h-2 md:w-3 md:h-3 rounded-sm ${getLevelClass(level)}`} />
               ))}
             </div>
-            <span className="font-body text-xs text-muted-foreground">More</span>
+            <span className="font-body text-[10px] md:text-xs text-muted-foreground">More</span>
           </div>
         </div>
 
-        {/* Month labels */}
-        <div className="flex gap-1 mb-2 ml-0">
-          {months.map((month) => (
-            <span
-              key={month}
-              className="font-body text-xs text-muted-foreground"
-              style={{ width: "calc(20% - 2px)" }}
-            >
-              {month}
-            </span>
-          ))}
-        </div>
+        {/* Scrollable container for mobile */}
+        <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
+          {/* Month labels */}
+          <div className="flex gap-0.5 md:gap-1 mb-2" style={{ minWidth: 'max-content' }}>
+            {months.map((month) => (
+              <span
+                key={month}
+                className="font-body text-[10px] md:text-xs text-muted-foreground"
+                style={{ width: weeks.length > 10 ? 'calc(20% - 2px)' : '40px' }}
+              >
+                {month}
+              </span>
+            ))}
+          </div>
 
-        {/* Grid */}
-        <div className="flex gap-1">
-          {weeks.map((week, weekIdx) => (
-            <div key={weekIdx} className="flex flex-col gap-1">
-              {week.map((day, dayIdx) => {
-                const dayHasReminder = hasReminder(day.date);
-                return (
-                  <div
-                    key={dayIdx}
-                    className={`w-3 h-3 relative ${getLevelClass(day.level)} transition-all hover:ring-1 hover:ring-foreground cursor-pointer rounded-sm`}
-                    title={`${day.level} hour${day.level !== 1 ? "s" : ""}${dayHasReminder ? " • Has reminder" : ""}`}
-                    onClick={() => {
-                      if (dayHasReminder) {
-                        setSelectedDay(day);
-                        setReminderPopupOpen(true);
-                      } else {
-                        setSelectedDay(day);
-                      }
-                    }}
-                  >
-                    {dayHasReminder && (
-                      <div className="absolute inset-0 bg-red-500 rounded-sm animate-pulse opacity-70" />
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          ))}
+          {/* Grid */}
+          <div className="flex gap-0.5 md:gap-1" style={{ minWidth: 'max-content' }}>
+            {weeks.map((week, weekIdx) => (
+              <div key={weekIdx} className="flex flex-col gap-0.5 md:gap-1">
+                {week.map((day, dayIdx) => {
+                  const dayHasReminder = hasReminder(day.date);
+                  return (
+                    <div
+                      key={dayIdx}
+                      className={`w-2 h-2 md:w-3 md:h-3 relative ${getLevelClass(day.level)} transition-all hover:ring-1 hover:ring-foreground cursor-pointer rounded-sm`}
+                      title={`${day.level} hour${day.level !== 1 ? "s" : ""}${dayHasReminder ? " • Has reminder" : ""}`}
+                      onClick={() => {
+                        if (dayHasReminder) {
+                          setSelectedDay(day);
+                          setReminderPopupOpen(true);
+                        } else {
+                          setSelectedDay(day);
+                        }
+                      }}
+                    >
+                      {dayHasReminder && (
+                        <div className="absolute inset-0 bg-destructive rounded-sm animate-pulse opacity-70" />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
