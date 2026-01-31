@@ -1,4 +1,3 @@
-
 import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { NotesProvider, useNotes } from "@/contexts/NotesContext";
@@ -9,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ArrowLeft, FileText, Plus, FolderClosed, List } from "lucide-react";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
-
 
 const NotesContent = () => {
   const navigate = useNavigate();
@@ -27,7 +25,6 @@ const NotesContent = () => {
       }
     }
   };
-
 
   const toggleFolders = useCallback(() => setIsFoldersCollapsed(prev => !prev), []);
   const toggleNotesList = useCallback(() => setIsNotesListCollapsed(prev => !prev), []);
@@ -120,7 +117,6 @@ const NotesContent = () => {
               </div>
             </ScrollArea>
           </div>
-
         </div>
 
         {/* Notes List */}
