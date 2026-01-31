@@ -67,7 +67,7 @@ const MotivationalBox = () => {
   };
 
   return (
-    <div className="border border-border p-6 bg-card h-[140px] flex flex-col">
+    <div className="border border-border p-6 bg-card h-[185px] flex flex-col">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <Sparkles className="h-4 w-4 text-contribution-high" />

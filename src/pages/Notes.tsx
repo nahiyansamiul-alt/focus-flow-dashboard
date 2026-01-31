@@ -1,8 +1,5 @@
-<<<<<<< HEAD
-import { useState } from "react";
-=======
+
 import { useState, useCallback } from "react";
->>>>>>> friend/main
 import { useNavigate } from "react-router-dom";
 import { NotesProvider, useNotes } from "@/contexts/NotesContext";
 import FoldersSidebar from "@/components/FoldersSidebar";
@@ -11,10 +8,8 @@ import MarkdownEditor from "@/components/MarkdownEditor";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ArrowLeft, FileText, Plus, FolderClosed, List } from "lucide-react";
-<<<<<<< HEAD
-=======
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
->>>>>>> friend/main
+
 
 const NotesContent = () => {
   const navigate = useNavigate();
@@ -33,8 +28,7 @@ const NotesContent = () => {
     }
   };
 
-<<<<<<< HEAD
-=======
+
   const toggleFolders = useCallback(() => setIsFoldersCollapsed(prev => !prev), []);
   const toggleNotesList = useCallback(() => setIsNotesListCollapsed(prev => !prev), []);
 
@@ -43,7 +37,6 @@ const NotesContent = () => {
     onToggleNotesList: toggleNotesList,
   });
 
->>>>>>> friend/main
   // Calculate panel widths based on collapse states
   const getFoldersWidth = () => isFoldersCollapsed ? "0px" : "200px";
   const getNotesListWidth = () => {
@@ -107,16 +100,6 @@ const NotesContent = () => {
       <div className="flex-1 overflow-hidden flex">
         {/* Folders Sidebar */}
         <div
-<<<<<<< HEAD
-          className="h-full border-r border-border transition-all duration-300 ease-in-out overflow-hidden flex-shrink-0"
-          style={{ width: getFoldersWidth() }}
-        >
-          <ScrollArea className="h-full">
-            <div className="p-4 min-w-[200px]">
-              <FoldersSidebar />
-            </div>
-          </ScrollArea>
-=======
           className="h-full border-r border-border overflow-hidden flex-shrink-0"
           style={{ 
             width: getFoldersWidth(),
@@ -137,21 +120,11 @@ const NotesContent = () => {
               </div>
             </ScrollArea>
           </div>
->>>>>>> friend/main
+
         </div>
 
         {/* Notes List */}
         <div
-<<<<<<< HEAD
-          className="h-full border-r border-border transition-all duration-300 ease-in-out overflow-hidden flex-shrink-0"
-          style={{ width: getNotesListWidth() }}
-        >
-          <ScrollArea className="h-full">
-            <div className="p-4 min-w-[240px]">
-              <NotesList />
-            </div>
-          </ScrollArea>
-=======
           className="h-full border-r border-border overflow-hidden flex-shrink-0"
           style={{ 
             width: getNotesListWidth(),
@@ -172,7 +145,6 @@ const NotesContent = () => {
               </div>
             </ScrollArea>
           </div>
->>>>>>> friend/main
         </div>
 
         {/* Editor Area */}
