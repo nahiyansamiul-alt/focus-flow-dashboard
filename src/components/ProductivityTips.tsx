@@ -60,7 +60,7 @@ const ProductivityTips = () => {
   const currentTip = tips[currentIndex];
 
   return (
-    <div className="border border-border p-6 bg-card">
+    <div className="border border-border p-6 bg-card h-[140px] flex flex-col">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <Lightbulb className="h-4 w-4 text-contribution-max" />
@@ -92,11 +92,11 @@ const ProductivityTips = () => {
           </Button>
         </div>
       </div>
-      <div className={`transition-opacity duration-200 ${isAnimating ? 'opacity-0' : 'opacity-100'}`}>
-        <h4 className="font-display text-base font-semibold text-foreground mb-2">
+      <div className={`flex-1 transition-opacity duration-200 ${isAnimating ? 'opacity-0' : 'opacity-100'}`}>
+        <h4 className="font-display text-sm font-semibold text-foreground mb-1">
           {currentTip.title}
         </h4>
-        <p className="font-body text-sm text-muted-foreground leading-relaxed">
+        <p className="font-body text-xs text-muted-foreground leading-relaxed line-clamp-2">
           {currentTip.tip}
         </p>
       </div>
