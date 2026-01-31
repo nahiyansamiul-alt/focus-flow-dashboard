@@ -7,6 +7,7 @@ import RemindersList from "@/components/RemindersList";
 import ContributionGrid from "@/components/ContributionGrid";
 import Stats from "@/components/Stats";
 import MotivationalBox from "@/components/MotivationalBox";
+import ProductivityTips from "@/components/ProductivityTips";
 import KeyboardShortcutsModal, { KeyboardShortcutsButton } from "@/components/KeyboardShortcutsModal";
 import { ReminderForm } from "@/components/ReminderForm";
 import { SessionProvider } from "@/contexts/SessionContext";
@@ -47,11 +48,12 @@ const IndexContent = () => {
           <MotivationalBox />
         </div>
 
-        {/* Right Column - Todo, Reminders & Stats */}
+        {/* Right Column - Todo, Reminders, Stats & Tips */}
         <div className="lg:col-span-7 space-y-8">
           <TodoList />
           <RemindersList />
           <Stats />
+          <ProductivityTips />
         </div>
       </div>
 
