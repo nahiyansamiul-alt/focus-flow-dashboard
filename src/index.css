@@ -1,0 +1,182 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500&family=Playfair+Display:ital,wght@0,400;1,400&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 50 20% 97%;
+    --foreground: 0 0% 8%;
+
+    --card: 50 20% 97%;
+    --card-foreground: 0 0% 8%;
+
+    --popover: 50 20% 97%;
+    --popover-foreground: 0 0% 8%;
+
+    --primary: 0 0% 8%;
+    --primary-foreground: 50 20% 97%;
+
+    --secondary: 50 10% 92%;
+    --secondary-foreground: 0 0% 8%;
+
+    --muted: 50 10% 92%;
+    --muted-foreground: 0 0% 45%;
+
+    --accent: 50 10% 92%;
+    --accent-foreground: 0 0% 8%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 50 20% 97%;
+
+    --border: 0 0% 85%;
+    --input: 0 0% 85%;
+    --ring: 0 0% 8%;
+
+    --radius: 0px;
+
+    /* Contribution grid colors */
+    --contribution-low: 140 30% 75%;
+    --contribution-medium: 140 40% 55%;
+    --contribution-high: 140 50% 40%;
+    --contribution-max: 140 60% 30%;
+  }
+
+  .dark {
+    --background: 0 0% 8%;
+    --foreground: 50 20% 97%;
+
+    --card: 0 0% 12%;
+    --card-foreground: 50 20% 97%;
+
+    --popover: 0 0% 12%;
+    --popover-foreground: 50 20% 97%;
+
+    --primary: 50 20% 97%;
+    --primary-foreground: 0 0% 8%;
+
+    --secondary: 0 0% 18%;
+    --secondary-foreground: 50 20% 97%;
+
+    --muted: 0 0% 18%;
+    --muted-foreground: 0 0% 55%;
+
+    --accent: 0 0% 18%;
+    --accent-foreground: 50 20% 97%;
+
+    --destructive: 0 62% 30%;
+    --destructive-foreground: 50 20% 97%;
+
+    --border: 0 0% 22%;
+    --input: 0 0% 22%;
+    --ring: 50 20% 97%;
+
+    --contribution-low: 140 30% 25%;
+    --contribution-medium: 140 40% 35%;
+    --contribution-high: 140 50% 45%;
+    --contribution-max: 140 60% 55%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-body;
+  }
+}
+
+/* Markdown prose styling */
+.prose {
+  @apply text-foreground;
+}
+
+.prose h1,
+.prose h2,
+.prose h3,
+.prose h4,
+.prose h5,
+.prose h6 {
+  @apply font-display font-bold text-foreground;
+}
+
+.prose h1 {
+  @apply text-3xl mt-6 mb-4;
+}
+
+.prose h2 {
+  @apply text-2xl mt-5 mb-3;
+}
+
+.prose h3 {
+  @apply text-xl mt-4 mb-2;
+}
+
+.prose p {
+  @apply mb-4;
+}
+
+.prose ul,
+.prose ol {
+  @apply my-4 pl-6;
+}
+
+.prose ul {
+  @apply list-disc;
+}
+
+.prose ol {
+  @apply list-decimal;
+}
+
+.prose li {
+  @apply mb-1;
+}
+
+.prose blockquote {
+  @apply border-l-4 border-primary pl-4 italic my-4 text-muted-foreground;
+}
+
+.prose code {
+  @apply bg-muted px-1.5 py-0.5 rounded text-sm font-mono;
+}
+
+.prose pre {
+  @apply bg-muted p-4 rounded-lg overflow-x-auto my-4;
+}
+
+.prose pre code {
+  @apply bg-transparent p-0;
+}
+
+.prose a {
+  @apply text-primary underline;
+}
+
+.prose img {
+  @apply max-w-full h-auto rounded-lg my-4;
+}
+
+.prose video {
+  @apply max-w-full rounded-lg my-4;
+}
+
+.prose table {
+  @apply w-full border-collapse my-4;
+}
+
+.prose th,
+.prose td {
+  @apply border border-border px-3 py-2 text-left;
+}
+
+.prose th {
+  @apply bg-muted font-semibold;
+}
+
+.prose hr {
+  @apply border-border my-6;
+}

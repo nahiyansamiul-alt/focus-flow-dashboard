@@ -1,0 +1,55 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Electron build output
+dist_electron/
+dist_electron
+
+# Electron app packages
+*.exe
+*.dmg
+*.AppImage
+*.deb
+*.zip
+
+# Backend
+backend/node_modules
+backend/.env
+backend/.env.local
+backend/dist
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# IDE and editor directories
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+*.sublime-workspace
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# Build cache
+*.tsbuildinfo
+.cache

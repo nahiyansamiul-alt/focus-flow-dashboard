@@ -1,0 +1,55 @@
+{
+  "appId": "com.focusflow.app",
+  "productName": "FocusFlow",
+  "directories": {
+    "buildResources": "public",
+    "output": "dist_electron"
+  },
+  "files": [
+    "dist/**/*",
+    "electron/**/*",
+    "backend/**/*",
+    "node_modules/**/*",
+    "backend/node_modules/**/*",
+    "package.json"
+  ],
+  "publish": {
+    "provider": "github",
+    "owner": "your-username",
+    "repo": "focus-flow-dashboard"
+  },
+  "win": {
+    "target": [
+      {
+        "target": "nsis",
+        "arch": [
+          "x64"
+        ]
+      },
+      {
+        "target": "portable",
+        "arch": [
+          "x64"
+        ]
+      }
+    ]
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true
+  },
+  "mac": {
+    "target": [
+      "dmg",
+      "zip"
+    ]
+  },
+  "linux": {
+    "target": [
+      "AppImage",
+      "deb"
+    ]
+  }
+}
