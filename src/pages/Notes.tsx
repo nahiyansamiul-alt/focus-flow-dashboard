@@ -1,10 +1,12 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { NotesProvider, useNotes } from "@/contexts/NotesContext";
 import FoldersSidebar from "@/components/FoldersSidebar";
 import NotesList from "@/components/NotesList";
 import MarkdownEditor from "@/components/MarkdownEditor";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, FileText, Plus } from "lucide-react";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { ArrowLeft, FileText, Plus, PanelLeftClose, PanelLeft } from "lucide-react";
 import {
   ResizableHandle,
   ResizablePanel,
@@ -14,6 +16,7 @@ import {
 const NotesContent = () => {
   const navigate = useNavigate();
   const { getSelectedNote, updateNote, selectedNoteId, selectedFolderId, createNote, selectNote } = useNotes();
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   
   const selectedNote = getSelectedNote();
 
@@ -27,9 +30,9 @@ const NotesContent = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="h-screen bg-background flex flex-col overflow-hidden">
       {/* Header */}
-      <header className="border-b border-border p-4 flex items-center gap-4">
+      <header className="border-b border-border p-4 flex items-center gap-4 flex-shrink-0">
         <Button
           variant="ghost"
           size="icon"
@@ -37,6 +40,14 @@ const NotesContent = () => {
           title="Back to Focus"
         >
           <ArrowLeft className="w-5 h-5" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+          title={isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+        >
+          {isSidebarCollapsed ? <PanelLeft className="w-5 h-5" /> : <PanelLeftClose className="w-5 h-5" />}
         </Button>
         <h1 className="font-display text-3xl md:text-4xl font-bold tracking-tighter">
           NOTES
@@ -58,27 +69,39 @@ const NotesContent = () => {
       {/* Main Content with Resizable Panels */}
       <div className="flex-1 overflow-hidden">
         <ResizablePanelGroup direction="horizontal" className="h-full">
-          {/* Folders Sidebar */}
-          <ResizablePanel defaultSize={15} minSize={10} maxSize={25}>
-            <div className="h-full p-4 overflow-y-auto overflow-x-hidden border-r border-border">
-              <FoldersSidebar />
-            </div>
-          </ResizablePanel>
+          {/* Folders Sidebar - Collapsible */}
+          {!isSidebarCollapsed && (
+            <>
+              <ResizablePanel defaultSize={15} minSize={10} maxSize={25}>
+                <ScrollArea className="h-full">
+                  <div className="p-4 border-r border-border h-full">
+                    <FoldersSidebar />
+                  </div>
+                </ScrollArea>
+              </ResizablePanel>
 
-          <ResizableHandle withHandle />
+              <ResizableHandle withHandle />
+            </>
+          )}
 
-          {/* Notes List */}
-          <ResizablePanel defaultSize={20} minSize={15} maxSize={35}>
-            <div className="h-full p-4 overflow-y-auto border-r border-border">
-              <NotesList />
-            </div>
-          </ResizablePanel>
+          {/* Notes List - Only show when folder is selected */}
+          {!isSidebarCollapsed && selectedFolderId && (
+            <>
+              <ResizablePanel defaultSize={20} minSize={15} maxSize={35}>
+                <ScrollArea className="h-full">
+                  <div className="p-4 border-r border-border h-full">
+                    <NotesList />
+                  </div>
+                </ScrollArea>
+              </ResizablePanel>
 
-          <ResizableHandle withHandle />
+              <ResizableHandle withHandle />
+            </>
+          )}
 
           {/* Editor Area */}
           <ResizablePanel defaultSize={65} minSize={40}>
-            <main className="h-95vh p-6 overflow-hidden">
+            <main className="h-full p-6 overflow-hidden">
               {selectedNote ? (
                 <MarkdownEditor
                   key={selectedNoteId}
