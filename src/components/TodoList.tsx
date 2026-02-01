@@ -2,14 +2,25 @@ import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, X } from "lucide-react";
+import { Plus, X, Repeat, Flag } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import TodoForm, { TodoFormData } from "./TodoForm";
+import { cn } from "@/lib/utils";
 
 interface Todo {
   _id?: string;
   id?: number;
-  text: string;
+  title?: string;
+  text?: string;
   completed: boolean;
+  repeatType?: "none" | "daily" | "weekly" | "monthly" | "yearly";
+  repeatInterval?: number;
+  repeatDays?: number[];
+  repeatLimit?: number | null;
+  repeatCount?: number;
+  repeatEndDate?: string | null;
+  priority?: "low" | "medium" | "high";
+  dueDate?: string | null;
 }
 
 interface AnimatedTodoProps {
@@ -19,17 +30,26 @@ interface AnimatedTodoProps {
   index: number;
 }
 
+const priorityColors = {
+  low: "text-muted-foreground",
+  medium: "text-yellow-500",
+  high: "text-red-500",
+};
+
 const AnimatedTodo = ({ todo, onToggle, onDelete, index }: AnimatedTodoProps) => {
+  const hasRepeat = todo.repeatType && todo.repeatType !== "none";
+  const title = todo.title || todo.text || "";
+
   return (
     <motion.div
       layout
       initial={{ scale: 0.8, opacity: 0, y: 20 }}
       animate={{ scale: 1, opacity: 1, y: 0 }}
       exit={{ scale: 0.8, opacity: 0, x: -100 }}
-      transition={{ 
-        duration: 0.25, 
+      transition={{
+        duration: 0.25,
         delay: index * 0.05,
-        layout: { duration: 0.2 }
+        layout: { duration: 0.2 },
       }}
       className="flex items-center gap-3 group"
     >
@@ -38,20 +58,29 @@ const AnimatedTodo = ({ todo, onToggle, onDelete, index }: AnimatedTodoProps) =>
         onCheckedChange={onToggle}
         className="border-foreground data-[state=checked]:bg-foreground"
       />
-      <motion.span
-        animate={{ opacity: todo.completed ? 0.5 : 1 }}
-        transition={{ duration: 0.2 }}
-        className={`font-body text-sm flex-1 ${
-          todo.completed ? "line-through text-muted-foreground" : "text-foreground"
-        }`}
-      >
-        {(todo as any).title || todo.text}
-      </motion.span>
+      <div className="flex-1 flex items-center gap-2 min-w-0">
+        {todo.priority && todo.priority !== "medium" && (
+          <Flag className={cn("w-3 h-3 shrink-0", priorityColors[todo.priority])} />
+        )}
+        <motion.span
+          animate={{ opacity: todo.completed ? 0.5 : 1 }}
+          transition={{ duration: 0.2 }}
+          className={cn(
+            "font-body text-sm truncate",
+            todo.completed ? "line-through text-muted-foreground" : "text-foreground"
+          )}
+        >
+          {title}
+        </motion.span>
+        {hasRepeat && (
+          <Repeat className="w-3 h-3 text-muted-foreground shrink-0" />
+        )}
+      </div>
       <Button
         variant="ghost"
         size="icon"
         onClick={onDelete}
-        className="opacity-0 group-hover:opacity-100 h-6 w-6 transition-opacity"
+        className="opacity-0 group-hover:opacity-100 h-6 w-6 transition-opacity shrink-0"
       >
         <X className="w-3 h-3" />
       </Button>
@@ -61,7 +90,8 @@ const AnimatedTodo = ({ todo, onToggle, onDelete, index }: AnimatedTodoProps) =>
 
 const TodoList = () => {
   const [todos, setTodos] = useState<Todo[]>([]);
-  const [newTodo, setNewTodo] = useState("");
+  const [quickTodo, setQuickTodo] = useState("");
+  const [formOpen, setFormOpen] = useState(false);
 
   // Fetch todos from backend
   const fetchTodos = async () => {
@@ -75,24 +105,51 @@ const TodoList = () => {
     }
   };
 
-  // Add todo to backend
-  const addTodo = async () => {
-    if (newTodo.trim()) {
+  // Quick add todo (simple)
+  const addQuickTodo = async () => {
+    if (quickTodo.trim()) {
       try {
         const res = await fetch("http://localhost:5000/api/todos", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ title: newTodo.trim() })
+          body: JSON.stringify({ title: quickTodo.trim() }),
         });
         if (res.ok) {
           await fetchTodos();
-          setNewTodo("");
+          setQuickTodo("");
         } else {
           console.error("Failed to add todo:", res.statusText);
         }
       } catch (error) {
         console.error("Error adding todo:", error);
       }
+    }
+  };
+
+  // Add todo with full options
+  const addTodoWithOptions = async (data: TodoFormData) => {
+    try {
+      const res = await fetch("http://localhost:5000/api/todos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: data.title,
+          repeatType: data.repeatType,
+          repeatInterval: data.repeatInterval,
+          repeatDays: data.repeatDays,
+          repeatLimit: data.repeatLimit,
+          repeatEndDate: data.repeatEndDate?.toISOString() || null,
+          priority: data.priority,
+          dueDate: data.dueDate?.toISOString() || null,
+        }),
+      });
+      if (res.ok) {
+        await fetchTodos();
+      } else {
+        console.error("Failed to add todo:", res.statusText);
+      }
+    } catch (error) {
+      console.error("Error adding todo:", error);
     }
   };
 
@@ -103,7 +160,7 @@ const TodoList = () => {
     await fetch(`http://localhost:5000/api/todos/${id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ completed: !todo.completed })
+      body: JSON.stringify({ completed: !todo.completed }),
     });
     await fetchTodos();
   };
@@ -111,10 +168,11 @@ const TodoList = () => {
   // Delete todo from backend
   const deleteTodo = async (id: string) => {
     await fetch(`http://localhost:5000/api/todos/${id}`, {
-      method: "DELETE"
+      method: "DELETE",
     });
     await fetchTodos();
   };
+
   // Load todos on mount
   useEffect(() => {
     fetchTodos();
@@ -145,23 +203,32 @@ const TodoList = () => {
         </AnimatePresence>
       </div>
 
-      <motion.div 
+      <motion.div
         className="flex gap-2"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.3 }}
       >
         <Input
-          value={newTodo}
-          onChange={(e) => setNewTodo(e.target.value)}
-          onKeyPress={(e) => e.key === "Enter" && addTodo()}
-          placeholder="Add a task..."
+          value={quickTodo}
+          onChange={(e) => setQuickTodo(e.target.value)}
+          onKeyPress={(e) => e.key === "Enter" && addQuickTodo()}
+          placeholder="Quick add task..."
           className="font-body text-sm border-border"
         />
-        <Button onClick={addTodo} variant="outline" size="icon">
+        <Button onClick={addQuickTodo} variant="outline" size="icon" title="Quick add">
           <Plus className="w-4 h-4" />
         </Button>
+        <Button onClick={() => setFormOpen(true)} variant="outline" size="icon" title="Add with options">
+          <Repeat className="w-4 h-4" />
+        </Button>
       </motion.div>
+
+      <TodoForm
+        isOpen={formOpen}
+        onOpenChange={setFormOpen}
+        onSubmit={addTodoWithOptions}
+      />
     </div>
   );
 };
