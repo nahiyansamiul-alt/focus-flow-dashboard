@@ -12,7 +12,7 @@ interface AnimatedReminderProps {
     _id?: string;
     id?: string;
     title: string;
-    date: Date;
+    date: Date | string;
     completed: boolean;
   };
   onToggle: () => void;
@@ -21,12 +21,14 @@ interface AnimatedReminderProps {
 }
 
 const AnimatedReminder = ({ reminder, onToggle, onDelete, index }: AnimatedReminderProps) => {
-  const isOverdue = isPast(reminder.date) && !reminder.completed;
+  // Ensure date is a proper Date object
+  const reminderDate = reminder.date instanceof Date ? reminder.date : new Date(reminder.date);
+  const isOverdue = isPast(reminderDate) && !isToday(reminderDate) && !reminder.completed;
   
-  const formatDate = (date: Date) => {
-    if (isToday(date)) return format(date, "'Today' h:mm a");
-    if (isTomorrow(date)) return format(date, "'Tomorrow' h:mm a");
-    return format(date, "MMM d, h:mm a");
+  const formatReminderDate = (date: Date) => {
+    if (isToday(date)) return format(date, "'Today at' h:mm a");
+    if (isTomorrow(date)) return format(date, "'Tomorrow at' h:mm a");
+    return format(date, "MMM d 'at' h:mm a");
   };
 
   return (
@@ -61,7 +63,7 @@ const AnimatedReminder = ({ reminder, onToggle, onDelete, index }: AnimatedRemin
           isOverdue ? "text-destructive" : "text-muted-foreground"
         }`}>
           <Clock className="w-3 h-3" />
-          {formatDate(reminder.date)}
+          {formatReminderDate(reminderDate)}
         </span>
       </div>
       <Button
