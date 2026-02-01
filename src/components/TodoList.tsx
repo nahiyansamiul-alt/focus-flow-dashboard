@@ -5,6 +5,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Plus, X, Repeat, Flag } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import TodoForm, { TodoFormData } from "./TodoForm";
+import GradientText from "@/components/ui/gradient-text";
 import { cn } from "@/lib/utils";
 
 interface Todo {
@@ -36,6 +37,9 @@ const priorityColors = {
   high: "text-red-500",
 };
 
+// Activity grid colors converted to hex
+const activityGradientColors = ["#5ca8e0", "#9b7ed9", "#d96aa3", "#e09746"];
+
 const AnimatedTodo = ({ todo, onToggle, onDelete, index }: AnimatedTodoProps) => {
   const hasRepeat = todo.repeatType && todo.repeatType !== "none";
   const title = todo.title || todo.text || "";
@@ -62,16 +66,31 @@ const AnimatedTodo = ({ todo, onToggle, onDelete, index }: AnimatedTodoProps) =>
         {todo.priority && todo.priority !== "medium" && (
           <Flag className={cn("w-3 h-3 shrink-0", priorityColors[todo.priority])} />
         )}
-        <motion.span
-          animate={{ opacity: todo.completed ? 0.5 : 1 }}
-          transition={{ duration: 0.2 }}
-          className={cn(
-            "font-body text-sm truncate",
-            todo.completed ? "line-through text-muted-foreground" : "text-foreground"
-          )}
-        >
-          {title}
-        </motion.span>
+        {hasRepeat ? (
+          <GradientText
+            colors={activityGradientColors}
+            animationSpeed={6}
+            className={cn(
+              "font-body text-sm",
+              todo.completed && "opacity-50"
+            )}
+          >
+            <span className={todo.completed ? "line-through" : ""}>
+              {title}
+            </span>
+          </GradientText>
+        ) : (
+          <motion.span
+            animate={{ opacity: todo.completed ? 0.5 : 1 }}
+            transition={{ duration: 0.2 }}
+            className={cn(
+              "font-body text-sm truncate",
+              todo.completed ? "line-through text-muted-foreground" : "text-foreground"
+            )}
+          >
+            {title}
+          </motion.span>
+        )}
         {hasRepeat && (
           <Repeat className="w-3 h-3 text-muted-foreground shrink-0" />
         )}
