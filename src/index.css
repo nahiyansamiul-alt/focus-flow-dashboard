@@ -36,11 +36,11 @@
 
     --radius: 0px;
 
-    /* Contribution grid colors - vibrant multi-color palette */
-    --contribution-low: 200 60% 70%;
-    --contribution-medium: 260 55% 60%;
-    --contribution-high: 330 65% 55%;
-    --contribution-max: 35 85% 55%;
+    /* Contribution grid colors - vibrant multi-color palette (darker) */
+    --contribution-low: 200 55% 55%;
+    --contribution-medium: 260 50% 48%;
+    --contribution-high: 330 60% 45%;
+    --contribution-max: 35 80% 45%;
   }
 
   .dark {
@@ -72,11 +72,11 @@
     --input: 0 0% 22%;
     --ring: 50 20% 97%;
 
-    /* Contribution grid colors - vibrant multi-color palette (dark mode) */
-    --contribution-low: 200 50% 40%;
-    --contribution-medium: 260 45% 50%;
-    --contribution-high: 330 55% 50%;
-    --contribution-max: 35 75% 50%;
+    /* Contribution grid colors - vibrant multi-color palette (dark mode - darker) */
+    --contribution-low: 200 50% 35%;
+    --contribution-medium: 260 45% 40%;
+    --contribution-high: 330 55% 42%;
+    --contribution-max: 35 75% 42%;
   }
 }
 

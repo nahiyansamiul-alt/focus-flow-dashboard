@@ -77,7 +77,39 @@ const ContributionGrid = () => {
     return `${mins}m`;
   };
 
-  const months = ["Jan", "Feb", "Mar", "Apr", "May"];
+  // Dynamically generate month labels based on actual grid dates
+  const monthLabels = useMemo(() => {
+    const labels: { month: string; startWeek: number; span: number }[] = [];
+    let currentMonth = -1;
+    let currentLabel: { month: string; startWeek: number; span: number } | null = null;
+
+    weeks.forEach((week, weekIdx) => {
+      // Use the first day of the week to determine the month
+      const firstDayOfWeek = week[0];
+      if (firstDayOfWeek) {
+        const month = firstDayOfWeek.date.getMonth();
+        if (month !== currentMonth) {
+          if (currentLabel) {
+            labels.push(currentLabel);
+          }
+          currentMonth = month;
+          currentLabel = {
+            month: firstDayOfWeek.date.toLocaleDateString("en-US", { month: "short" }),
+            startWeek: weekIdx,
+            span: 1,
+          };
+        } else if (currentLabel) {
+          currentLabel.span++;
+        }
+      }
+    });
+
+    if (currentLabel) {
+      labels.push(currentLabel);
+    }
+
+    return labels;
+  }, [weeks]);
 
   return (
     <>
@@ -99,15 +131,18 @@ const ContributionGrid = () => {
 
         {/* Scrollable container for mobile */}
         <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
-          {/* Month labels */}
-          <div className="flex gap-0.5 md:gap-1 mb-2" style={{ minWidth: 'max-content' }}>
-            {months.map((month) => (
+          {/* Month labels - dynamically positioned */}
+          <div className="flex mb-2 relative" style={{ minWidth: 'max-content' }}>
+            {monthLabels.map((label, idx) => (
               <span
-                key={month}
+                key={`${label.month}-${idx}`}
                 className="font-body text-[10px] md:text-xs text-muted-foreground"
-                style={{ width: weeks.length > 10 ? 'calc(20% - 2px)' : '40px' }}
+                style={{ 
+                  width: `calc(${(label.span / weeks.length) * 100}% - 2px)`,
+                  marginLeft: idx === 0 ? `calc(${(label.startWeek / weeks.length) * 100}%)` : 0
+                }}
               >
-                {month}
+                {label.month}
               </span>
             ))}
           </div>
