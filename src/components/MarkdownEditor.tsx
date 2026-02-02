@@ -5,6 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
   Bold,
   Italic,
   Strikethrough,
@@ -20,9 +25,11 @@ import {
   Video,
   Eye,
   Edit,
-  Check
+  Check,
+  Grid3X3
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { PaperBackground, PatternPreview, paperPatterns, type PaperPattern } from "@/components/ui/paper-background";
 
 interface MarkdownEditorProps {
   content: string;
@@ -35,11 +42,19 @@ const MarkdownEditor = ({ content, title, onContentChange, onTitleChange }: Mark
   const [isPreview, setIsPreview] = useState(true);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editableTitle, setEditableTitle] = useState(title);
+  const [paperPattern, setPaperPattern] = useState<PaperPattern>(() => {
+    const saved = localStorage.getItem("editor-paper-pattern");
+    return (saved as PaperPattern) || "none";
+  });
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     setEditableTitle(title);
   }, [title]);
+
+  useEffect(() => {
+    localStorage.setItem("editor-paper-pattern", paperPattern);
+  }, [paperPattern]);
 
   const insertMarkdown = useCallback((before: string, after: string = "", placeholder: string = "") => {
     const textarea = textareaRef.current;
@@ -137,6 +152,35 @@ const MarkdownEditor = ({ content, title, onContentChange, onTitleChange }: Mark
         ))}
         
         <div className="flex-1" />
+
+        {/* Paper Pattern Selector */}
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              title="Paper background"
+            >
+              <Grid3X3 className="w-4 h-4" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-3" align="end">
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-muted-foreground">Paper Background</p>
+              <div className="grid grid-cols-5 gap-2">
+                {paperPatterns.map((pattern) => (
+                  <PatternPreview
+                    key={pattern}
+                    pattern={pattern}
+                    isSelected={paperPattern === pattern}
+                    onClick={() => setPaperPattern(pattern)}
+                  />
+                ))}
+              </div>
+            </div>
+          </PopoverContent>
+        </Popover>
         
         <Button
           variant={isPreview ? "default" : "ghost"}
@@ -152,34 +196,36 @@ const MarkdownEditor = ({ content, title, onContentChange, onTitleChange }: Mark
       {/* Editor / Preview */}
       <div className="flex-1 border border-t-0 border-border rounded-b-lg overflow-hidden">
         {isPreview ? (
-          <div className="h-full overflow-auto p-4 prose prose-sm max-w-none dark:prose-invert">
-            <ReactMarkdown 
-              remarkPlugins={[remarkGfm]}
-              components={{
-                img: ({ src, alt }) => (
-                  <img 
-                    src={src} 
-                    alt={alt} 
-                    className="max-w-full h-auto rounded-lg"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src = "/placeholder.svg";
-                    }}
-                  />
-                ),
-                a: ({ href, children }) => (
-                  <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-                    {children}
-                  </a>
-                ),
-                // Handle video elements
-                video: (props) => (
-                  <video {...props} className="max-w-full rounded-lg" controls />
-                ),
-              }}
-            >
-              {content || "*Start writing...*"}
-            </ReactMarkdown>
-          </div>
+          <PaperBackground pattern={paperPattern} className="h-full overflow-auto">
+            <div className="p-4 prose prose-sm max-w-none dark:prose-invert min-h-full">
+              <ReactMarkdown 
+                remarkPlugins={[remarkGfm]}
+                components={{
+                  img: ({ src, alt }) => (
+                    <img 
+                      src={src} 
+                      alt={alt} 
+                      className="max-w-full h-auto rounded-lg"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = "/placeholder.svg";
+                      }}
+                    />
+                  ),
+                  a: ({ href, children }) => (
+                    <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                      {children}
+                    </a>
+                  ),
+                  // Handle video elements
+                  video: (props) => (
+                    <video {...props} className="max-w-full rounded-lg" controls />
+                  ),
+                }}
+              >
+                {content || "*Start writing...*"}
+              </ReactMarkdown>
+            </div>
+          </PaperBackground>
         ) : (
           <Textarea
             ref={textareaRef}
