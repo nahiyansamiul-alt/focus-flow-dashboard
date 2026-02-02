@@ -9,6 +9,7 @@ interface GradientTextProps {
   showBorder?: boolean;
   direction?: 'horizontal' | 'vertical' | 'diagonal';
   pauseOnHover?: boolean;
+  animateOnHover?: boolean; // Only animate when hovered
   yoyo?: boolean;
 }
 
@@ -20,9 +21,11 @@ export default function GradientText({
   showBorder = false,
   direction = 'horizontal',
   pauseOnHover = false,
+  animateOnHover = false,
   yoyo = true
 }: GradientTextProps) {
-  const [isPaused, setIsPaused] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
+  const [isPaused, setIsPaused] = useState(animateOnHover); // Start paused if animateOnHover
   const progress = useMotionValue(0);
   const elapsedRef = useRef(0);
   const lastTimeRef = useRef<number | null>(null);
@@ -70,12 +73,22 @@ export default function GradientText({
   });
 
   const handleMouseEnter = useCallback(() => {
-    if (pauseOnHover) setIsPaused(true);
-  }, [pauseOnHover]);
+    setIsHovered(true);
+    if (animateOnHover) {
+      setIsPaused(false);
+    } else if (pauseOnHover) {
+      setIsPaused(true);
+    }
+  }, [pauseOnHover, animateOnHover]);
 
   const handleMouseLeave = useCallback(() => {
-    if (pauseOnHover) setIsPaused(false);
-  }, [pauseOnHover]);
+    setIsHovered(false);
+    if (animateOnHover) {
+      setIsPaused(true);
+    } else if (pauseOnHover) {
+      setIsPaused(false);
+    }
+  }, [pauseOnHover, animateOnHover]);
 
   const gradientAngle =
     direction === 'horizontal' ? 'to right' : direction === 'vertical' ? 'to bottom' : 'to bottom right';
@@ -115,7 +128,7 @@ export default function GradientText({
         className="inline relative z-[2]"
         style={{ 
           ...gradientStyle, 
-          backgroundPosition, 
+          backgroundPosition: isHovered || !animateOnHover ? backgroundPosition : '0% 50%',
           WebkitBackgroundClip: 'text',
           backgroundClip: 'text',
           color: 'transparent',

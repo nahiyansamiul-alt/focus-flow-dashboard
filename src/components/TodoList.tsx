@@ -69,7 +69,8 @@ const AnimatedTodo = ({ todo, onToggle, onDelete, index }: AnimatedTodoProps) =>
         {hasRepeat ? (
           <GradientText
             colors={activityGradientColors}
-            animationSpeed={6}
+            animationSpeed={4}
+            animateOnHover={true}
             className={cn(
               "font-body text-sm",
               todo.completed && "opacity-50"
