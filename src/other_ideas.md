@@ -1,0 +1,1 @@
+- there will be a option to start timer for memorizing notes, if i start for memorizing notes the productivy will show which notes i am memorizing or reading currently and there will e a small timer on the notes page if i start the timer for the notes 
