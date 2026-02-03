@@ -17,73 +17,13 @@ interface PaperBackgroundProps {
   children?: React.ReactNode;
 }
 
-const patternStyles: Record<PaperPattern, string> = {
-  none: "",
-  grid: `
-    background-color: hsl(var(--paper-base));
-    background-image: 
-      linear-gradient(hsl(var(--paper-line)) 1px, transparent 1px),
-      linear-gradient(90deg, hsl(var(--paper-line)) 1px, transparent 1px);
-    background-size: 20px 20px;
-  `,
-  "grid-plus": `
-    background-color: hsl(var(--paper-base));
-    background-image: 
-      linear-gradient(hsl(var(--paper-line)) 1px, transparent 1px),
-      linear-gradient(90deg, hsl(var(--paper-line)) 1px, transparent 1px),
-      radial-gradient(circle, hsl(120 50% 50%) 1.5px, transparent 1.5px);
-    background-size: 20px 20px, 20px 20px, 80px 80px;
-    background-position: 0 0, 0 0, 10px 10px;
-  `,
-  "grid-confetti": `
-    background-color: hsl(var(--paper-base));
-    background-image: 
-      linear-gradient(hsl(var(--paper-line-soft)) 1px, transparent 1px),
-      linear-gradient(90deg, hsl(var(--paper-line-soft)) 1px, transparent 1px);
-    background-size: 12px 12px;
-  `,
-  "graph-rainbow": `
-    background-color: hsl(var(--paper-base));
-    background-image: 
-      linear-gradient(hsl(var(--paper-line)) 1px, transparent 1px),
-      linear-gradient(90deg, hsl(var(--paper-line)) 1px, transparent 1px);
-    background-size: 16px 16px;
-  `,
-  "graph-cyan": `
-    background-color: hsl(var(--paper-base));
-    background-image: 
-      linear-gradient(hsl(185 60% 70%) 1px, transparent 1px),
-      linear-gradient(90deg, hsl(185 60% 70%) 1px, transparent 1px),
-      linear-gradient(hsl(0 70% 60%) 2px, transparent 2px);
-    background-size: 12px 12px, 12px 12px, 100% 120px;
-    background-position: 0 0, 0 0, 0 0;
-  `,
-  dots: `
-    background-color: hsl(var(--paper-base));
-    background-image: radial-gradient(circle, hsl(var(--paper-dot)) 2px, transparent 2px);
-    background-size: 24px 24px;
-  `,
-  lines: `
-    background-color: hsl(var(--paper-base));
-    background-image: linear-gradient(hsl(var(--paper-line)) 1px, transparent 1px);
-    background-size: 100% 28px;
-  `,
-  ruled: `
-    background-color: hsl(var(--paper-base));
-    background-image: 
-      linear-gradient(hsl(var(--paper-line)) 1px, transparent 1px),
-      linear-gradient(90deg, hsl(0 70% 60%) 2px, transparent 2px);
-    background-size: 100% 28px, 60px 100%;
-    background-position: 0 0, 58px 0;
-  `,
-};
-
 // CSS-in-JS approach for inline styles
 const getPatternStyle = (pattern: PaperPattern): React.CSSProperties => {
   if (pattern === "none") return {};
   
   const styles: Record<PaperPattern, React.CSSProperties> = {
     none: {},
+    // Simple clean grid
     grid: {
       backgroundColor: "hsl(45 30% 96%)",
       backgroundImage: `
@@ -92,32 +32,53 @@ const getPatternStyle = (pattern: PaperPattern): React.CSSProperties => {
       `,
       backgroundSize: "20px 20px",
     },
+    // Grid with green plus signs at intersections (image-19)
     "grid-plus": {
-      backgroundColor: "hsl(45 30% 96%)",
+      backgroundColor: "hsl(48 35% 95%)",
       backgroundImage: `
-        linear-gradient(hsl(45 10% 75% / 0.4) 1px, transparent 1px),
-        linear-gradient(90deg, hsl(45 10% 75% / 0.4) 1px, transparent 1px),
-        radial-gradient(circle, hsl(120 45% 55%) 1.5px, transparent 1.5px)
+        linear-gradient(hsl(45 10% 80% / 0.4) 1px, transparent 1px),
+        linear-gradient(90deg, hsl(45 10% 80% / 0.4) 1px, transparent 1px),
+        radial-gradient(circle, hsl(90 50% 45%) 1.5px, transparent 1.5px),
+        linear-gradient(hsl(90 50% 45%) 1px, transparent 1px),
+        linear-gradient(90deg, hsl(90 50% 45%) 1px, transparent 1px)
       `,
-      backgroundSize: "20px 20px, 20px 20px, 80px 80px",
-      backgroundPosition: "0 0, 0 0, 10px 10px",
+      backgroundSize: "40px 40px, 40px 40px, 40px 40px, 40px 4px, 4px 40px",
+      backgroundPosition: "0 0, 0 0, 20px 20px, 18px 20px, 20px 18px",
     },
+    // Confetti grid with scattered colorful squares (image-18)
     "grid-confetti": {
-      backgroundColor: "hsl(45 30% 97%)",
+      backgroundColor: "hsl(10 20% 97%)",
       backgroundImage: `
-        linear-gradient(hsl(350 40% 85% / 0.4) 1px, transparent 1px),
-        linear-gradient(90deg, hsl(350 40% 85% / 0.4) 1px, transparent 1px)
+        linear-gradient(hsl(350 20% 88% / 0.3) 1px, transparent 1px),
+        linear-gradient(90deg, hsl(350 20% 88% / 0.3) 1px, transparent 1px),
+        radial-gradient(circle, hsl(350 60% 70%) 2px, transparent 2px),
+        radial-gradient(circle, hsl(200 60% 60%) 2px, transparent 2px),
+        radial-gradient(circle, hsl(100 50% 55%) 2px, transparent 2px),
+        radial-gradient(circle, hsl(35 70% 60%) 2px, transparent 2px)
       `,
-      backgroundSize: "10px 10px",
+      backgroundSize: "12px 12px, 12px 12px, 180px 150px, 220px 170px, 200px 190px, 160px 140px",
+      backgroundPosition: "0 0, 0 0, 15px 20px, 80px 60px, 120px 100px, 50px 130px",
     },
+    // Rainbow stripe grid with colored horizontal bands (image-17)
     "graph-rainbow": {
       backgroundColor: "hsl(45 30% 96%)",
       backgroundImage: `
-        linear-gradient(hsl(350 60% 70% / 0.5) 1px, transparent 1px),
-        linear-gradient(90deg, hsl(350 60% 70% / 0.5) 1px, transparent 1px)
+        linear-gradient(hsl(350 55% 75% / 0.5) 1px, transparent 1px),
+        linear-gradient(90deg, hsl(350 55% 75% / 0.5) 1px, transparent 1px),
+        linear-gradient(to bottom, 
+          hsl(350 55% 75% / 0.15) 0%, hsl(350 55% 75% / 0.15) 14.28%,
+          hsl(35 65% 70% / 0.15) 14.28%, hsl(35 65% 70% / 0.15) 28.56%,
+          hsl(50 70% 65% / 0.15) 28.56%, hsl(50 70% 65% / 0.15) 42.84%,
+          hsl(160 45% 60% / 0.15) 42.84%, hsl(160 45% 60% / 0.15) 57.12%,
+          hsl(45 30% 96% / 0) 57.12%, hsl(45 30% 96% / 0) 71.4%,
+          hsl(350 50% 70% / 0.1) 71.4%, hsl(350 50% 70% / 0.1) 85.68%,
+          hsl(160 40% 55% / 0.1) 85.68%, hsl(160 40% 55% / 0.1) 100%
+        )
       `,
-      backgroundSize: "14px 14px",
+      backgroundSize: "10px 10px, 10px 10px, 100% 700px",
+      backgroundPosition: "0 0, 0 0, 0 0",
     },
+    // Cyan graph paper with red accent lines
     "graph-cyan": {
       backgroundColor: "hsl(45 30% 96%)",
       backgroundImage: `
@@ -128,16 +89,19 @@ const getPatternStyle = (pattern: PaperPattern): React.CSSProperties => {
       backgroundSize: "10px 10px, 10px 10px, 100% 100px",
       backgroundPosition: "0 0, 0 0, 0 0",
     },
+    // Dot grid
     dots: {
       backgroundColor: "hsl(45 25% 95%)",
       backgroundImage: "radial-gradient(circle, hsl(30 10% 35%) 1.5px, transparent 1.5px)",
       backgroundSize: "22px 22px",
     },
+    // Horizontal lines
     lines: {
       backgroundColor: "hsl(42 25% 93%)",
       backgroundImage: "linear-gradient(hsl(35 15% 70% / 0.6) 1px, transparent 1px)",
       backgroundSize: "100% 26px",
     },
+    // Ruled paper with red margin line
     ruled: {
       backgroundColor: "hsl(50 35% 95%)",
       backgroundImage: `

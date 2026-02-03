@@ -5,7 +5,9 @@
 @tailwind utilities;
 
 @layer base {
-  :root {
+  /* Default: Timeless theme */
+  :root,
+  .timeless {
     --background: 43 30% 94%;
     --foreground: 0 0% 8%;
 
@@ -41,6 +43,84 @@
     --contribution-medium: 260 50% 48%;
     --contribution-high: 330 60% 45%;
     --contribution-max: 35 80% 45%;
+  }
+
+  /* Lotus Pond theme - Dark green, Moss green, Beige, Rosy brown, Midnight green */
+  .lotus-pond {
+    --background: 50 40% 92%;
+    --foreground: 152 55% 12%;
+
+    --card: 50 40% 92%;
+    --card-foreground: 152 55% 12%;
+
+    --popover: 50 40% 92%;
+    --popover-foreground: 152 55% 12%;
+
+    --primary: 152 55% 12%;
+    --primary-foreground: 50 40% 92%;
+
+    --secondary: 78 25% 47%;
+    --secondary-foreground: 50 40% 92%;
+
+    --muted: 50 30% 88%;
+    --muted-foreground: 152 30% 30%;
+
+    --accent: 8 40% 69%;
+    --accent-foreground: 152 55% 12%;
+
+    --destructive: 0 65% 50%;
+    --destructive-foreground: 50 40% 92%;
+
+    --border: 78 20% 65%;
+    --input: 78 20% 65%;
+    --ring: 152 55% 12%;
+
+    --radius: 0px;
+
+    /* Contribution colors - Lotus pond palette */
+    --contribution-low: 192 70% 24%;
+    --contribution-medium: 78 25% 47%;
+    --contribution-high: 8 40% 69%;
+    --contribution-max: 152 55% 12%;
+  }
+
+  /* Olive Petal theme - Olive Petal, Golden Clover, Artic Daisy, Rose Blush, Peach Blossom */
+  .olive-petal {
+    --background: 50 40% 87%;
+    --foreground: 60 14% 37%;
+
+    --card: 50 40% 87%;
+    --card-foreground: 60 14% 37%;
+
+    --popover: 50 40% 87%;
+    --popover-foreground: 60 14% 37%;
+
+    --primary: 60 14% 37%;
+    --primary-foreground: 50 40% 92%;
+
+    --secondary: 52 40% 55%;
+    --secondary-foreground: 60 14% 25%;
+
+    --muted: 50 30% 82%;
+    --muted-foreground: 60 14% 45%;
+
+    --accent: 24 45% 56%;
+    --accent-foreground: 60 14% 25%;
+
+    --destructive: 352 35% 51%;
+    --destructive-foreground: 50 40% 92%;
+
+    --border: 52 25% 60%;
+    --input: 52 25% 60%;
+    --ring: 60 14% 37%;
+
+    --radius: 0px;
+
+    /* Contribution colors - Olive petal palette */
+    --contribution-low: 52 40% 55%;
+    --contribution-medium: 24 45% 56%;
+    --contribution-high: 352 35% 51%;
+    --contribution-max: 60 14% 37%;
   }
 
   .dark {

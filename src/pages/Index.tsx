@@ -12,6 +12,7 @@ import KeyboardShortcutsModal, { KeyboardShortcutsButton } from "@/components/Ke
 import { ReminderForm } from "@/components/ReminderForm";
 import { SessionProvider } from "@/contexts/SessionContext";
 import { RemindersProvider } from "@/contexts/RemindersContext";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 
 const IndexContent = () => {
@@ -68,7 +69,10 @@ const IndexContent = () => {
           <p className="font-body text-xs sm:text-sm text-muted-foreground">
             Built with intention. Stay focused.
           </p>
-          <KeyboardShortcutsButton onClick={() => setShortcutsOpen(true)} />
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <KeyboardShortcutsButton onClick={() => setShortcutsOpen(true)} />
+          </div>
         </div>
       </footer>
 
