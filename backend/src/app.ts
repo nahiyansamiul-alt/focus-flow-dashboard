@@ -16,6 +16,10 @@ app.use(express.json());
 // Initialize SQLite database
 initializeDatabase();
 
+app.get('/health', (_req, res) => {
+  res.status(200).json({ status: 'ok' });
+});
+
 // API routes
 app.use('/api/todos', todoRoutes);
 app.use('/api/notes', noteRoutes);

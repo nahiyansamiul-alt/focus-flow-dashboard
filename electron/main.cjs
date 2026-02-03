@@ -2,6 +2,7 @@ const { app, BrowserWindow, ipcMain, Menu } = require('electron');
 const path = require('path');
 const { spawn } = require('child_process');
 const { autoUpdater } = require('electron-updater');
+const http = require('http');
 
 const PORT = 3000;
 const API_PORT = 5000;
@@ -15,19 +16,53 @@ let backendProcess;
 function startBackend(backendPath) {
   return new Promise((resolve) => {
     console.log('Starting backend from:', backendPath);
-    
+
     backendProcess = spawn('node', [backendPath], {
       cwd: path.dirname(backendPath),
-      stdio: 'ignore',
+      env: {
+        ...process.env,
+        PORT: API_PORT,
+        DB_PATH: path.join(app.getPath('userData'), 'focusflow.db'),
+      },
+      stdio: 'pipe',
       detached: false,
+    });
+
+    backendProcess.stdout.on('data', (data) => {
+      console.log(`Backend: ${data.toString().trim()}`);
+    });
+
+    backendProcess.stderr.on('data', (data) => {
+      console.error(`Backend error: ${data.toString().trim()}`);
     });
 
     backendProcess.on('error', (err) => {
       console.error('Failed to start backend:', err);
     });
 
-    // Wait a bit for backend to start
-    setTimeout(() => resolve(), 1500);
+    const waitForBackend = (attemptsLeft = 20) => {
+      const req = http.get(`http://localhost:${API_PORT}/health`, (res) => {
+        if (res.statusCode === 200) {
+          res.resume();
+          resolve();
+        } else if (attemptsLeft > 0) {
+          res.resume();
+          setTimeout(() => waitForBackend(attemptsLeft - 1), 500);
+        } else {
+          resolve();
+        }
+      });
+
+      req.on('error', () => {
+        if (attemptsLeft > 0) {
+          setTimeout(() => waitForBackend(attemptsLeft - 1), 500);
+        } else {
+          resolve();
+        }
+      });
+    };
+
+    waitForBackend();
   });
 }
 

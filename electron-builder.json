@@ -13,6 +13,10 @@
     "backend/node_modules/**/*",
     "package.json"
   ],
+  "asarUnpack": [
+    "backend/**",
+    "node_modules/sqlite3/**"
+  ],
   "publish": {
     "provider": "github",
     "owner": "your-username",
