@@ -85,10 +85,14 @@ export default function GradientText({
     setIsHovered(false);
     if (animateOnHover) {
       setIsPaused(true);
+      // Reset animation when mouse leaves
+      elapsedRef.current = 0;
+      lastTimeRef.current = null;
+      progress.set(0);
     } else if (pauseOnHover) {
       setIsPaused(false);
     }
-  }, [pauseOnHover, animateOnHover]);
+  }, [pauseOnHover, animateOnHover, progress]);
 
   const gradientAngle =
     direction === 'horizontal' ? 'to right' : direction === 'vertical' ? 'to bottom' : 'to bottom right';
@@ -128,7 +132,7 @@ export default function GradientText({
         className="inline relative z-[2]"
         style={{ 
           ...gradientStyle, 
-          backgroundPosition: isHovered || !animateOnHover ? backgroundPosition : '0% 50%',
+          backgroundPosition,
           WebkitBackgroundClip: 'text',
           backgroundClip: 'text',
           color: 'transparent',
