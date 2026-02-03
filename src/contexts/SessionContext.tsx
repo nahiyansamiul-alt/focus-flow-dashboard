@@ -42,13 +42,18 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
   const fetchSessions = async () => {
     try {
       setIsLoading(true);
+      console.log('[SessionContext] Starting fetch from:', `${API_BASE_URL}/history`);
       const response = await fetch(`${API_BASE_URL}/history`);
+      console.log('[SessionContext] Response status:', response.status, response.ok);
       if (!response.ok) throw new Error("Failed to fetch history");
       
       const historyData = await response.json();
+      console.log('[SessionContext] Fetched history count:', historyData.length);
+      console.log('[SessionContext] Fetched history data:', historyData);
       
       // Convert backend history to DayData format
       const grouped = historyData.reduce((acc: { [key: string]: Session[] }, item: any) => {
+        console.log('[SessionContext] Processing item:', item.date, item.action, item.duration);
         if (item.date && item.action === 'focus_session') {
           if (!acc[item.date]) {
             acc[item.date] = [];
@@ -62,14 +67,17 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
         return acc;
       }, {});
       
+      console.log('[SessionContext] Grouped sessions:', grouped);
+      
       const sessionsData = Object.entries(grouped).map(([date, sessions]) => ({
         date,
         sessions: sessions as Session[]
       }));
       
+      console.log('[SessionContext] Final sessions data:', sessionsData);
       setSessions(sessionsData);
     } catch (error) {
-      console.error("Error fetching sessions from backend:", error);
+      console.error("[SessionContext] Error fetching sessions from backend:", error);
       // Fall back to localStorage if backend fails
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {

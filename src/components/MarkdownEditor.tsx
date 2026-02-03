@@ -29,6 +29,7 @@ import {
   Grid3X3
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useDebounce } from "@/hooks/use-debounce";
 import { PaperBackground, PatternPreview, paperPatterns, type PaperPattern } from "@/components/ui/paper-background";
 
 interface MarkdownEditorProps {
@@ -42,15 +43,28 @@ const MarkdownEditor = ({ content, title, onContentChange, onTitleChange }: Mark
   const [isPreview, setIsPreview] = useState(true);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editableTitle, setEditableTitle] = useState(title);
+  const [localContent, setLocalContent] = useState(content);
   const [paperPattern, setPaperPattern] = useState<PaperPattern>(() => {
     const saved = localStorage.getItem("editor-paper-pattern");
     return (saved as PaperPattern) || "none";
   });
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const titleChangeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Debounce content changes
+  useDebounce(localContent, 500, (debouncedContent) => {
+    if (debouncedContent !== content) {
+      onContentChange(debouncedContent);
+    }
+  });
 
   useEffect(() => {
     setEditableTitle(title);
   }, [title]);
+
+  useEffect(() => {
+    setLocalContent(content);
+  }, [content]);
 
   useEffect(() => {
     localStorage.setItem("editor-paper-pattern", paperPattern);
@@ -62,15 +76,15 @@ const MarkdownEditor = ({ content, title, onContentChange, onTitleChange }: Mark
 
     const start = textarea.selectionStart;
     const end = textarea.selectionEnd;
-    const selectedText = content.substring(start, end);
+    const selectedText = localContent.substring(start, end);
     const textToInsert = selectedText || placeholder;
     
     const newContent = 
-      content.substring(0, start) + 
+      localContent.substring(0, start) + 
       before + textToInsert + after + 
-      content.substring(end);
+      localContent.substring(end);
     
-    onContentChange(newContent);
+    setLocalContent(newContent);
     
     // Set cursor position after insertion
     setTimeout(() => {
@@ -78,7 +92,7 @@ const MarkdownEditor = ({ content, title, onContentChange, onTitleChange }: Mark
       const newCursorPos = start + before.length + textToInsert.length;
       textarea.setSelectionRange(newCursorPos, newCursorPos);
     }, 0);
-  }, [content, onContentChange]);
+  }, [localContent]);
 
   const toolbarButtons = [
     { icon: Bold, action: () => insertMarkdown("**", "**", "bold"), title: "Bold" },
@@ -99,10 +113,20 @@ const MarkdownEditor = ({ content, title, onContentChange, onTitleChange }: Mark
     { icon: Video, action: () => insertMarkdown('<video src="', '" controls></video>', "video-url"), title: "Video" },
   ];
 
-  const handleTitleSubmit = () => {
-    onTitleChange(editableTitle);
+  const handleTitleSubmit = useCallback(() => {
+    const trimmedTitle = editableTitle.trim();
+    if (trimmedTitle && trimmedTitle !== title) {
+      // Clear any pending updates
+      if (titleChangeTimeoutRef.current) {
+        clearTimeout(titleChangeTimeoutRef.current);
+      }
+      // Debounce the title change with a slight delay
+      titleChangeTimeoutRef.current = setTimeout(() => {
+        onTitleChange(trimmedTitle);
+      }, 100);
+    }
     setIsEditingTitle(false);
-  };
+  }, [editableTitle, title, onTitleChange]);
 
   return (
     <div className="flex flex-col h-full">
@@ -222,15 +246,15 @@ const MarkdownEditor = ({ content, title, onContentChange, onTitleChange }: Mark
                   ),
                 }}
               >
-                {content || "*Start writing...*"}
+                {localContent || "*Start writing...*"}
               </ReactMarkdown>
             </div>
           </PaperBackground>
         ) : (
           <Textarea
             ref={textareaRef}
-            value={content}
-            onChange={(e) => onContentChange(e.target.value)}
+            value={localContent}
+            onChange={(e) => setLocalContent(e.target.value)}
             placeholder="Start writing in Markdown..."
             className="h-full resize-none border-none rounded-none focus-visible:ring-0 font-mono text-sm"
           />

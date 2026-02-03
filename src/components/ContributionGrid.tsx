@@ -22,28 +22,39 @@ const ContributionGrid = () => {
   const { getSessionsForDate, getLevelForDate, isLoading } = useSession();
   const { reminders, getRemindersByDate } = useReminders();
 
-  // Generate grid data for 20 weeks (140 days)
-  const data = useMemo((): DayData[] => {
-    const result: DayData[] = [];
-    const today = new Date();
+  // Generate data for all 12 months in calendar year order
+  const today = new Date();
+  const currentYear = today.getFullYear();
+  
+  const getMonthData = (monthNum: number) => {
+    const actualMonth = new Date(currentYear, monthNum, 1);
+    const monthYear = actualMonth.getFullYear();
+    const monthName = actualMonth.toLocaleDateString("en-US", { month: "short" });
     
-    for (let i = 139; i >= 0; i--) {
-      const date = new Date(today);
-      date.setDate(date.getDate() - i);
+    const lastDayOfMonth = new Date(monthYear, monthNum + 1, 0).getDate();
+    
+    const data: DayData[] = [];
+    for (let day = 1; day <= lastDayOfMonth; day++) {
+      const date = new Date(monthYear, monthNum, day);
       date.setHours(0, 0, 0, 0);
       
       const sessions = getSessionsForDate(date);
       const level = getLevelForDate(date);
       
-      result.push({ level, date, sessions });
+      data.push({ level, date, sessions });
     }
-    return result;
-  }, [getSessionsForDate, getLevelForDate]);
-  
-  const weeks: DayData[][] = [];
-  for (let i = 0; i < 20; i++) {
-    weeks.push(data.slice(i * 7, (i + 1) * 7));
-  }
+    
+    // Create 7-column grid (7 days per week)
+    const weeks: DayData[][] = [];
+    for (let i = 0; i < data.length; i += 7) {
+      weeks.push(data.slice(i, i + 7));
+    }
+    
+    return { monthName, weeks, data };
+  };
+
+  // Get all 12 months in calendar order (January through December)
+  const months = Array.from({ length: 12 }, (_, i) => getMonthData(i));
 
   const getLevelClass = (level: number) => {
     switch (level) {
@@ -77,47 +88,16 @@ const ContributionGrid = () => {
     return `${mins}m`;
   };
 
-  // Dynamically generate month labels based on actual grid dates
-  const monthLabels = useMemo(() => {
-    const labels: { month: string; startWeek: number; span: number }[] = [];
-    let currentMonth = -1;
-    let currentLabel: { month: string; startWeek: number; span: number } | null = null;
-
-    weeks.forEach((week, weekIdx) => {
-      // Use the first day of the week to determine the month
-      const firstDayOfWeek = week[0];
-      if (firstDayOfWeek) {
-        const month = firstDayOfWeek.date.getMonth();
-        if (month !== currentMonth) {
-          if (currentLabel) {
-            labels.push(currentLabel);
-          }
-          currentMonth = month;
-          currentLabel = {
-            month: firstDayOfWeek.date.toLocaleDateString("en-US", { month: "short" }),
-            startWeek: weekIdx,
-            span: 1,
-          };
-        } else if (currentLabel) {
-          currentLabel.span++;
-        }
-      }
-    });
-
-    if (currentLabel) {
-      labels.push(currentLabel);
-    }
-
-    return labels;
-  }, [weeks]);
-
   return (
     <>
-      <div className="border border-border p-4 md:p-6 bg-card overflow-hidden">
-        <div className="flex items-center justify-between mb-4 md:mb-6">
+      <div className="border border-border p-4 md:p-6 bg-card">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-6">
           <span className="font-body text-xs uppercase tracking-widest text-muted-foreground">
             Activity
           </span>
+          
+          {/* Legend */}
           <div className="flex items-center gap-1 md:gap-2">
             <span className="font-body text-[10px] md:text-xs text-muted-foreground">Less</span>
             <div className="flex gap-0.5 md:gap-1">
@@ -129,50 +109,45 @@ const ContributionGrid = () => {
           </div>
         </div>
 
-        {/* Scrollable container for mobile */}
+        {/* Multiple months grid */}
         <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
-          {/* Month labels - dynamically positioned */}
-          <div className="flex mb-2 relative" style={{ minWidth: 'max-content' }}>
-            {monthLabels.map((label, idx) => (
-              <span
-                key={`${label.month}-${idx}`}
-                className="font-body text-[10px] md:text-xs text-muted-foreground"
-                style={{ 
-                  width: `calc(${(label.span / weeks.length) * 100}% - 2px)`,
-                  marginLeft: idx === 0 ? `calc(${(label.startWeek / weeks.length) * 100}%)` : 0
-                }}
-              >
-                {label.month}
-              </span>
-            ))}
-          </div>
-
-          {/* Grid */}
-          <div className="flex gap-0.5 md:gap-1" style={{ minWidth: 'max-content' }}>
-            {weeks.map((week, weekIdx) => (
-              <div key={weekIdx} className="flex flex-col gap-0.5 md:gap-1">
-                {week.map((day, dayIdx) => {
-                  const dayHasReminder = hasReminder(day.date);
-                  return (
-                    <div
-                      key={dayIdx}
-                      className={`w-2 h-2 md:w-3 md:h-3 relative ${getLevelClass(day.level)} transition-all hover:ring-1 hover:ring-foreground cursor-pointer rounded-sm`}
-                      title={`${day.level} hour${day.level !== 1 ? "s" : ""}${dayHasReminder ? " • Has reminder" : ""}`}
-                      onClick={() => {
-                        if (dayHasReminder) {
-                          setSelectedDay(day);
-                          setReminderPopupOpen(true);
-                        } else {
-                          setSelectedDay(day);
-                        }
-                      }}
-                    >
-                      {dayHasReminder && (
-                        <div className="absolute inset-0 bg-destructive rounded-sm animate-pulse opacity-70" />
-                      )}
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-4" style={{ minWidth: 'max-content' }}>
+            {months.map((monthData, monthIdx) => (
+              <div key={monthIdx} className="flex flex-col gap-1">
+                {/* Month label */}
+                <span className="font-body text-xs uppercase tracking-widest text-muted-foreground">
+                  {monthData.monthName}
+                </span>
+                
+                {/* 4-column grid - days go left to right */}
+                <div className="flex flex-col gap-0.5 md:gap-1">
+                  {monthData.weeks.map((week, weekIdx) => (
+                    <div key={weekIdx} className="flex gap-0.5 md:gap-1">
+                      {week.map((day, dayIdx) => {
+                        const dayHasReminder = hasReminder(day.date);
+                        return (
+                          <div
+                            key={dayIdx}
+                            className={`w-2 h-2 md:w-3 md:h-3 relative ${getLevelClass(day.level)} transition-all hover:ring-1 hover:ring-foreground cursor-pointer rounded-sm`}
+                            title={`${day.date.getDate()} - ${day.level} hour${day.level !== 1 ? "s" : ""}${dayHasReminder ? " • Has reminder" : ""}`}
+                            onClick={() => {
+                              if (dayHasReminder) {
+                                setSelectedDay(day);
+                                setReminderPopupOpen(true);
+                              } else {
+                                setSelectedDay(day);
+                              }
+                            }}
+                          >
+                            {dayHasReminder && (
+                              <div className="absolute inset-0 bg-destructive rounded-sm animate-pulse opacity-70" />
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
-                  );
-                })}
+                  ))}
+                </div>
               </div>
             ))}
           </div>
@@ -202,7 +177,7 @@ const ContributionGrid = () => {
                   <div className="flex items-center gap-3">
                     <div className={`w-2 h-2 ${getLevelClass(selectedDay.level)}`} />
                     <span className="font-body text-sm">
-                      {session.start} — {session.end}
+                      {session.start || 'N/A'} — {session.end || 'N/A'}
                     </span>
                   </div>
                   <span className="font-display text-sm font-medium">

@@ -1,19 +1,20 @@
 import express from 'express';
-import mongoose from 'mongoose';
-import dotenv from 'dotenv';
 import cors from 'cors';
+import { initializeDatabase } from './database';
 
 import todoRoutes from './routes/todoRoutes';
 import noteRoutes from './routes/noteRoutes';
 import historyRoutes from './routes/historyRoutes';
 import folderRoutes from './routes/folderRoutes';
 import sessionRoutes from './routes/sessionRoutes';
-
-dotenv.config();
+import reminderRoutes from './routes/reminderRoutes';
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// Initialize SQLite database
+initializeDatabase();
 
 // API routes
 app.use('/api/todos', todoRoutes);
@@ -21,10 +22,8 @@ app.use('/api/notes', noteRoutes);
 app.use('/api/history', historyRoutes);
 app.use('/api/folders', folderRoutes);
 app.use('/api/sessions', sessionRoutes);
+app.use('/api/reminders', reminderRoutes);
 
-// Connect to MongoDB
-mongoose.connect(process.env.MONGODB_URI || '', { useNewUrlParser: true, useUnifiedTopology: true })
-  .then(() => console.log('MongoDB connected'))
-  .catch((err) => console.error('MongoDB connection error:', err));
+console.log('Focus Flow Backend initialized with SQLite');
 
 export default app;

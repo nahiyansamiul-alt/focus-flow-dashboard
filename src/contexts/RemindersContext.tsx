@@ -46,8 +46,9 @@ export const RemindersProvider = ({ children }: RemindersProviderProps) => {
         const data = result.data || [];
         const mappedReminders = data.map((r: any) => ({
           ...r,
+          _id: r._id || r.id,
           id: r._id || r.id,
-          date: new Date(r.date),
+          date: new Date(r.date || r.reminderDate),
           createdAt: new Date(r.createdAt),
           updatedAt: r.updatedAt ? new Date(r.updatedAt) : new Date(r.createdAt)
         }));
@@ -74,8 +75,9 @@ export const RemindersProvider = ({ children }: RemindersProviderProps) => {
       if (result.success && result.data) {
         const newReminder = {
           ...result.data,
-          id: result.data._id,
-          date: new Date(result.data.date),
+          _id: result.data._id || result.data.id,
+          id: result.data._id || result.data.id,
+          date: new Date(result.data.date || result.data.reminderDate),
           createdAt: new Date(result.data.createdAt),
         };
         setReminders(prev => [...prev, newReminder]);
@@ -99,9 +101,16 @@ export const RemindersProvider = ({ children }: RemindersProviderProps) => {
       }
       
       const result = await remindersAPI.update(id, updateData);
-      if (result.success) {
+      if (result.success && result.data) {
+        const updatedReminder = {
+          ...result.data,
+          _id: result.data._id || result.data.id,
+          id: result.data._id || result.data.id,
+          date: new Date(result.data.date || result.data.reminderDate),
+          createdAt: new Date(result.data.createdAt),
+        };
         setReminders(prev => prev.map(r => 
-          (r._id === id || r.id === id) ? { ...r, ...updates } : r
+          (r._id === id || r.id === id) ? updatedReminder : r
         ));
         toast.success("Reminder updated");
       } else {

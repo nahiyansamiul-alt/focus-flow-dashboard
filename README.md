@@ -1,8 +1,10 @@
 # 🎯 FocusFlow - Productivity Dashboard
 
-A modern, feature-rich productivity and focus management application built with React, TypeScript, Express.js, and MongoDB.
+A modern, feature-rich productivity and focus management application built with React, TypeScript, Express.js, and SQLite.
 
 **Available as a free desktop app!** Download for Windows, macOS, or Linux → [INSTALL.md](./INSTALL.md)
+
+**Self-Hosted Single .exe** - Deploy as a standalone executable with built-in SQLite database!
 
 ## ✨ Features
 
@@ -24,7 +26,7 @@ A modern, feature-rich productivity and focus management application built with 
   - `Ctrl+S` - Save
   - `Ctrl+K` - Search
   - `Esc` - Close dialogs
-- **Real-time Sync** - All data persists to MongoDB
+- **Real-time Sync** - All data persists to SQLite
 - **Responsive Design** - Works on desktop and tablet
 - **Toast Notifications** - User-friendly feedback
 
@@ -33,7 +35,6 @@ A modern, feature-rich productivity and focus management application built with 
 ### Prerequisites
 - Node.js (v18+)
 - npm or bun
-- MongoDB (local or Atlas)
 
 ### Installation
 
@@ -59,20 +60,21 @@ mongod
 
 # 5. Start both servers in separate terminals
 
-# Terminal 1 - Backend
+# Terminal 1 - Backend (SQLite)
 cd backend
 node index.js
-# Should see: Backend server running on http://localhost:5000
+# Should see: Server running on port 5000
+# SQLite database created at: backend/focusflow.db
 
 # Terminal 2 - Frontend
 npm run dev
-# Should see: Local: http://localhost:8080
+# Should see: Local: http://localhost:5173
 ```
 
 ### Access the App
-- **Frontend**: http://localhost:8080
+- **Frontend**: http://localhost:5173
 - **Backend API**: http://localhost:5000/api
-- **MongoDB**: mongodb://localhost:27017/focusflow
+- **Database**: SQLite file at `backend/focusflow.db`
 
 ## 📁 Project Structure
 
@@ -154,7 +156,8 @@ focus-flow-dashboard/
 
 ### Backend
 - **Node.js + Express.js** - REST API server
-- **MongoDB + Mongoose** - Database & ODM
+- **SQLite** - Lightweight, self-hosted database
+- **TypeScript** - Type-safe backend code
 - **CORS** - Cross-origin requests
 - **dotenv** - Environment variables
 

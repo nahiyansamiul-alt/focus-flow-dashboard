@@ -1,6 +1,6 @@
 # FocusFlow Backend API
 
-Express.js REST API server for the FocusFlow productivity dashboard.
+Express.js REST API server for the FocusFlow productivity dashboard with SQLite database.
 
 ## 🚀 Quick Start
 
@@ -8,16 +8,18 @@ Express.js REST API server for the FocusFlow productivity dashboard.
 # Install dependencies
 npm install
 
-# Create .env file
-cat > .env << EOF
-MONGODB_URI=mongodb://localhost:27017/focusflow
-PORT=5000
-EOF
-
-# Start server
+# Start server (uses SQLite - no configuration needed!)
 node index.js
 # Server runs on http://localhost:5000
+# Database automatically created at: ./focusflow.db
 ```
+
+## 🗄️ Database
+
+- **SQLite** - Self-contained database file (`focusflow.db`)
+- **No external dependencies** - Perfect for desktop/self-hosted apps
+- **Automatic schema creation** - Tables created on first run
+- **Foreign keys enabled** - Data integrity maintained
 
 ## 📡 API Routes
 
@@ -34,54 +36,69 @@ All routes are prefixed with `/api/`
 - `POST /notes` - Create note
 - `PUT /notes/:id` - Update note
 - `DELETE /notes/:id` - Delete note
+- `GET /notes/folder/:folderId` - Get notes in folder
 
 ### Folders
 - `GET /folders` - Get all folders
 - `POST /folders` - Create folder
 - `PUT /folders/:id` - Update folder
-- `DELETE /folders/:id` - Delete folder
+- `DELETE /folders/:id` - Delete folder (cascades to notes/todos)
 
 ### Reminders
 - `GET /reminders` - Get all reminders
-- `GET /reminders/date/:date` - Get reminders by date
+- `GET /reminders/:date` - Get reminders by date
 - `POST /reminders` - Create reminder
 - `PUT /reminders/:id` - Update reminder
 - `DELETE /reminders/:id` - Delete reminder
 
-### History
+### History (Focus Sessions)
 - `GET /history` - Get all history
 - `GET /history/:date` - Get history by date
-- `POST /history` - Log action
+- `POST /history` - Log action/session
+
+### Sessions
+- `GET /sessions` - Get all sessions
+- `POST /sessions` - Create session
 
 ## 📦 Dependencies
 
 - **express** - Web framework
-- **mongoose** - MongoDB ODM
+- **sqlite3** - SQLite database driver
+- **typescript** - Type safety
+- **ts-node** - TypeScript runtime
 - **cors** - Cross-origin requests
 - **dotenv** - Environment variables
 
 ## 🔧 Configuration
 
-Create `backend/.env`:
+Set these environment variables in `.env` (optional):
 ```env
-MONGODB_URI=mongodb://localhost:27017/focusflow
 PORT=5000
+DB_PATH=./focusflow.db
+NODE_ENV=development
 ```
 
-Or use MongoDB Atlas:
-```env
-MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/focusflow
-PORT=5000
-```
+## 📚 Database Schema
 
-## 📚 Models
+Located in `src/database.ts`:
 
-Located in `models/`:
-- `Todo.js` - Todo tasks
-- `Note.js` - Notes
-- `Folder.js` - Note folders
-- `Reminder.js` - Task reminders
-- `History.js` - Activity history
+### todos
+- id, title, description, completed, priority, dueDate, folderId, createdAt, updatedAt
+
+### notes
+- id, title, content, folderId, createdAt, updatedAt
+
+### folders
+- id, name, color, createdAt, updatedAt
+
+### history
+- id, action, details, duration, startTime, endTime, date, timestamp
+
+### reminders
+- id, title, description, reminderDate, reminderTime, completed, createdAt, updatedAt
+
+### sessions
+- id, date, startTime, endTime, duration, createdAt
 
 ## 🧪 Testing API
 
@@ -99,7 +116,12 @@ curl http://localhost:5000/api/todos
 # Create reminder
 curl -X POST http://localhost:5000/api/reminders \
   -H "Content-Type: application/json" \
-  -d '{"title":"Meeting","date":"2026-02-01T10:00:00","description":"Team sync"}'
+  -d '{"title":"Meeting","reminderDate":"2026-02-01","reminderTime":"10:00","description":"Team sync"}'
+
+# Create folder
+curl -X POST http://localhost:5000/api/folders \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Work","color":"#3b82f6"}'
 ```
 
 ## 🐛 Error Handling

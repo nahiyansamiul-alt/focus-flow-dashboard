@@ -8,6 +8,8 @@ import TodoForm, { TodoFormData } from "./TodoForm";
 import GradientText from "@/components/ui/gradient-text";
 import { cn } from "@/lib/utils";
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+
 interface Todo {
   _id?: string;
   id?: number;
@@ -116,7 +118,7 @@ const TodoList = () => {
   // Fetch todos from backend
   const fetchTodos = async () => {
     try {
-      const res = await fetch("http://localhost:5000/api/todos");
+      const res = await fetch(`${API_BASE_URL}/todos`);
       if (!res.ok) throw new Error(`Failed to fetch todos: ${res.statusText}`);
       const data = await res.json();
       setTodos(data);
@@ -129,7 +131,7 @@ const TodoList = () => {
   const addQuickTodo = async () => {
     if (quickTodo.trim()) {
       try {
-        const res = await fetch("http://localhost:5000/api/todos", {
+        const res = await fetch(`${API_BASE_URL}/todos`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ title: quickTodo.trim() }),
@@ -149,7 +151,7 @@ const TodoList = () => {
   // Add todo with full options
   const addTodoWithOptions = async (data: TodoFormData) => {
     try {
-      const res = await fetch("http://localhost:5000/api/todos", {
+      const res = await fetch(`${API_BASE_URL}/todos`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -175,19 +177,23 @@ const TodoList = () => {
 
   // Toggle todo completed in backend
   const toggleTodo = async (id: string) => {
-    const todo = todos.find((t) => t._id === id);
+    const todo = todos.find((t) => (t._id === id || t.id === id));
     if (!todo) return;
-    await fetch(`http://localhost:5000/api/todos/${id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ completed: !todo.completed }),
-    });
-    await fetchTodos();
+    try {
+      await fetch(`${API_BASE_URL}/todos/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ completed: !todo.completed }),
+      });
+      await fetchTodos();
+    } catch (error) {
+      console.error("Error toggling todo:", error);
+    }
   };
 
   // Delete todo from backend
   const deleteTodo = async (id: string) => {
-    await fetch(`http://localhost:5000/api/todos/${id}`, {
+    await fetch(`${API_BASE_URL}/todos/${id}`, {
       method: "DELETE",
     });
     await fetchTodos();
@@ -216,8 +222,8 @@ const TodoList = () => {
               key={todo._id || todo.id}
               todo={todo}
               index={index}
-              onToggle={() => toggleTodo(todo._id || "")}
-              onDelete={() => deleteTodo(todo._id || "")}
+              onToggle={() => toggleTodo(todo._id || todo.id || "")}
+              onDelete={() => deleteTodo(todo._id || todo.id || "")}
             />
           ))}
         </AnimatePresence>

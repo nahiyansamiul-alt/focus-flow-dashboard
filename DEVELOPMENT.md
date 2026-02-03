@@ -39,9 +39,14 @@ src/
 ### Backend Structure
 ```
 backend/
-├── models/            # MongoDB schemas
-├── routes/            # API endpoint handlers
-├── index.js           # Server entry point
+├── src/
+│   ├── controllers/    # SQLite query handlers
+│   ├── models/         # TypeScript type definitions
+│   ├── routes/         # API endpoint routing
+│   ├── database.ts     # SQLite initialization & queries
+│   ├── app.ts          # Express app setup
+│   └── server.ts       # Server entry point
+├── index.js            # Bootstrap file
 └── package.json
 ```
 
@@ -52,13 +57,14 @@ backend/
 **Frontend:**
 ```
 User clicks "Add Todo" 
-  → TodoList component calls todoAPI.create()
-  → API service sends POST to /api/todos
+  → TodoList component calls fetch with POST to /api/todos
+  → API service sends request
   
 Backend receives request
-  → Route handler validates data
-  → Saves to MongoDB
-  → Returns created todo
+  → Route handler receives data
+  → Controller validates and processes
+  → Executes SQLite INSERT query
+  → Returns created todo with ID
 
 Frontend receives response
   → Updates local state
@@ -68,59 +74,72 @@ Frontend receives response
 
 ## 📝 Adding a New Feature
 
-### Step 1: Backend Model
-Create `backend/models/YourModel.js`:
-```javascript
-const mongoose = require('mongoose');
+### Step 1: Backend Controller (SQLite)
+Create `backend/src/controllers/yourController.ts`:
+```typescript
+import { Request, Response } from 'express';
+import { allAsync, runAsync, getAsync } from '../database';
 
-const Schema = new mongoose.Schema({
-  title: { type: String, required: true },
-  createdAt: { type: Date, default: Date.now },
-});
+export const getItems = async (_req: Request, res: Response) => {
+  try {
+    const items = await allAsync('SELECT * FROM items ORDER BY createdAt DESC');
+    res.json(items);
+  } catch (error) {
+    res.status(400).json({ error: 'Failed to fetch items' });
+  }
+};
 
-module.exports = mongoose.model('Model', Schema);
+export const createItem = async (req: Request, res: Response) => {
+  try {
+    const { name, description } = req.body;
+    const result = await runAsync(
+      `INSERT INTO items (name, description, createdAt) VALUES (?, ?, CURRENT_TIMESTAMP)`,
+      [name, description || null]
+    );
+    const item = await getAsync('SELECT * FROM items WHERE id = ?', [result.id]);
+    res.status(201).json(item);
+  } catch (error) {
+    res.status(400).json({ error: 'Failed to create item' });
+  }
+};
 ```
 
 ### Step 2: Backend Routes
-Create `backend/routes/your-routes.js`:
-```javascript
-const express = require('express');
-const router = express.Router();
-const Model = require('../models/YourModel');
+Create `backend/src/routes/yourRoutes.ts`:
+```typescript
+import { Router } from 'express';
+import { getItems, createItem } from '../controllers/yourController';
 
-router.get('/', async (req, res) => {
-  try {
-    const items = await Model.find().sort({ createdAt: -1 });
-    res.json(items);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch' });
-  }
-});
+const router = Router();
 
-router.post('/', async (req, res) => {
-  try {
-    const item = new Model(req.body);
-    await item.save();
-    res.status(201).json(item);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to create' });
-  }
-});
+router.get('/', getItems);
+router.post('/', createItem);
 
-module.exports = router;
+export default router;
 ```
 
-### Step 3: Register Route
-In `backend/index.js`:
-```javascript
-// Add import
-const YourModel = require('./models/YourModel');
-
-// Add route
-app.use('/api/your-route', require('./routes/your-routes'));
+### Step 3: Register Route in database.ts
+Add table creation to `backend/src/database.ts`:
+```typescript
+db.run(`
+  CREATE TABLE IF NOT EXISTS items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    description TEXT,
+    createdAt TEXT DEFAULT CURRENT_TIMESTAMP
+  )
+`);
 ```
 
-### Step 4: Frontend API Service
+### Step 4: Register Route in app.ts
+In `backend/src/app.ts`:
+```typescript
+import yourRoutes from './routes/yourRoutes';
+
+app.use('/api/your-route', yourRoutes);
+```
+
+### Step 5: Frontend API Service
 In `src/lib/api.ts`:
 ```typescript
 export const yourAPI = {
@@ -142,7 +161,7 @@ export const yourAPI = {
 };
 ```
 
-### Step 5: Frontend Context (Optional)
+### Step 6: Frontend Context (Optional)
 Create `src/contexts/YourContext.tsx`:
 ```typescript
 import { createContext, useContext } from "react";

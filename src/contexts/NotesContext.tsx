@@ -69,7 +69,13 @@ export const NotesProvider = ({ children }: { children: ReactNode }) => {
       const response = await fetch(`${API_BASE_URL}/folders`);
       if (!response.ok) throw new Error("Failed to fetch folders");
       const data = await response.json();
-      setFolders(data);
+      // Sort folders by creation date (oldest first, newest last)
+      const sortedData = data.sort((a: Folder, b: Folder) => {
+        const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return dateA - dateB;
+      });
+      setFolders(sortedData);
     } catch (error) {
       console.error("Error fetching folders:", error);
     }
@@ -190,18 +196,33 @@ export const NotesProvider = ({ children }: { children: ReactNode }) => {
   // Update note
   const updateNote = async (id: string, updates: Partial<Note>) => {
     try {
+      // Only send fields that were actually updated, not undefined ones
+      const updateData = Object.fromEntries(
+        Object.entries(updates).filter(([, value]) => value !== undefined)
+      );
+      
+      console.log(`[NotesContext] Updating note ${id} with:`, updateData);
+      
       const response = await fetch(`${API_BASE_URL}/notes/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...updates, updatedAt: new Date() }),
+        body: JSON.stringify(updateData),
       });
-      if (!response.ok) throw new Error("Failed to update note");
+      
+      if (!response.ok) {
+        const error = await response.json();
+        console.error(`[NotesContext] API Error updating note ${id}:`, error);
+        throw new Error(error.error || "Failed to update note");
+      }
+      
       const updatedNote = await response.json();
+      console.log(`[NotesContext] Note ${id} updated successfully:`, updatedNote);
+      
       setNotes((prev) =>
         prev.map((n) => ((n._id || n.id) === id ? updatedNote : n))
       );
     } catch (error) {
-      console.error("Error updating note:", error);
+      console.error(`[NotesContext] Error updating note ${id}:`, error);
     }
   };
 

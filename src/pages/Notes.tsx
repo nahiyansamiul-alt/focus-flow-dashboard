@@ -150,7 +150,6 @@ const NotesContent = () => {
           <main className="h-full p-6 overflow-hidden">
             {selectedNote ? (
               <MarkdownEditor
-                key={selectedNoteId}
                 content={selectedNote.content}
                 title={selectedNote.title}
                 onContentChange={(content) => updateNote(selectedNote._id || selectedNote.id || "", { content })}
