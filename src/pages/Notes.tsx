@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ArrowLeft, FileText, Plus, FolderClosed, List } from "lucide-react";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 const NotesContent = () => {
   const navigate = useNavigate();
@@ -80,6 +81,7 @@ const NotesContent = () => {
           NOTES
         </h1>
         <div className="flex-1" />
+        <ThemeToggle />
         {selectedFolderId && (
           <Button
             variant="outline"
