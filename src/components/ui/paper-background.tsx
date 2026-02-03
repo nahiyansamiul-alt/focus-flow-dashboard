@@ -9,7 +9,10 @@ export type PaperPattern =
   | "graph-cyan"
   | "dots"
   | "lines"
-  | "ruled";
+  | "ruled"
+  | "rainbow-stripes"
+  | "confetti-scatter"
+  | "green-cross";
 
 interface PaperBackgroundProps {
   pattern: PaperPattern;
@@ -23,7 +26,7 @@ const getPatternStyle = (pattern: PaperPattern): React.CSSProperties => {
   
   const styles: Record<PaperPattern, React.CSSProperties> = {
     none: {},
-    // Simple clean grid
+    // Original simple clean grid
     grid: {
       backgroundColor: "hsl(45 30% 96%)",
       backgroundImage: `
@@ -32,35 +35,70 @@ const getPatternStyle = (pattern: PaperPattern): React.CSSProperties => {
       `,
       backgroundSize: "20px 20px",
     },
-    // Grid with green plus signs at intersections (image-19)
+    // Original grid with green dots
     "grid-plus": {
-      backgroundColor: "hsl(48 35% 95%)",
+      backgroundColor: "hsl(45 30% 96%)",
       backgroundImage: `
-        linear-gradient(hsl(45 10% 80% / 0.4) 1px, transparent 1px),
-        linear-gradient(90deg, hsl(45 10% 80% / 0.4) 1px, transparent 1px),
-        radial-gradient(circle, hsl(90 50% 45%) 1.5px, transparent 1.5px),
-        linear-gradient(hsl(90 50% 45%) 1px, transparent 1px),
-        linear-gradient(90deg, hsl(90 50% 45%) 1px, transparent 1px)
+        linear-gradient(hsl(45 10% 75% / 0.4) 1px, transparent 1px),
+        linear-gradient(90deg, hsl(45 10% 75% / 0.4) 1px, transparent 1px),
+        radial-gradient(circle, hsl(120 45% 55%) 1.5px, transparent 1.5px)
       `,
-      backgroundSize: "40px 40px, 40px 40px, 40px 40px, 40px 4px, 4px 40px",
-      backgroundPosition: "0 0, 0 0, 20px 20px, 18px 20px, 20px 18px",
+      backgroundSize: "20px 20px, 20px 20px, 80px 80px",
+      backgroundPosition: "0 0, 0 0, 10px 10px",
     },
-    // Confetti grid with scattered colorful squares (image-18)
+    // Original pink/rose small grid
     "grid-confetti": {
-      backgroundColor: "hsl(10 20% 97%)",
+      backgroundColor: "hsl(45 30% 97%)",
       backgroundImage: `
-        linear-gradient(hsl(350 20% 88% / 0.3) 1px, transparent 1px),
-        linear-gradient(90deg, hsl(350 20% 88% / 0.3) 1px, transparent 1px),
-        radial-gradient(circle, hsl(350 60% 70%) 2px, transparent 2px),
-        radial-gradient(circle, hsl(200 60% 60%) 2px, transparent 2px),
-        radial-gradient(circle, hsl(100 50% 55%) 2px, transparent 2px),
-        radial-gradient(circle, hsl(35 70% 60%) 2px, transparent 2px)
+        linear-gradient(hsl(350 40% 85% / 0.4) 1px, transparent 1px),
+        linear-gradient(90deg, hsl(350 40% 85% / 0.4) 1px, transparent 1px)
       `,
-      backgroundSize: "12px 12px, 12px 12px, 180px 150px, 220px 170px, 200px 190px, 160px 140px",
-      backgroundPosition: "0 0, 0 0, 15px 20px, 80px 60px, 120px 100px, 50px 130px",
+      backgroundSize: "10px 10px",
     },
-    // Rainbow stripe grid with colored horizontal bands (image-17)
+    // Original pink/rose graph
     "graph-rainbow": {
+      backgroundColor: "hsl(45 30% 96%)",
+      backgroundImage: `
+        linear-gradient(hsl(350 60% 70% / 0.5) 1px, transparent 1px),
+        linear-gradient(90deg, hsl(350 60% 70% / 0.5) 1px, transparent 1px)
+      `,
+      backgroundSize: "14px 14px",
+    },
+    // Original cyan graph paper with red accent lines
+    "graph-cyan": {
+      backgroundColor: "hsl(45 30% 96%)",
+      backgroundImage: `
+        linear-gradient(hsl(185 55% 65% / 0.6) 1px, transparent 1px),
+        linear-gradient(90deg, hsl(185 55% 65% / 0.6) 1px, transparent 1px),
+        linear-gradient(hsl(0 65% 60%) 2px, transparent 2px)
+      `,
+      backgroundSize: "10px 10px, 10px 10px, 100% 100px",
+      backgroundPosition: "0 0, 0 0, 0 0",
+    },
+    // Original dot grid
+    dots: {
+      backgroundColor: "hsl(45 25% 95%)",
+      backgroundImage: "radial-gradient(circle, hsl(30 10% 35%) 1.5px, transparent 1.5px)",
+      backgroundSize: "22px 22px",
+    },
+    // Original horizontal lines
+    lines: {
+      backgroundColor: "hsl(42 25% 93%)",
+      backgroundImage: "linear-gradient(hsl(35 15% 70% / 0.6) 1px, transparent 1px)",
+      backgroundSize: "100% 26px",
+    },
+    // Original ruled paper with red margin line
+    ruled: {
+      backgroundColor: "hsl(50 35% 95%)",
+      backgroundImage: `
+        linear-gradient(hsl(40 15% 75% / 0.5) 1px, transparent 1px),
+        linear-gradient(90deg, hsl(0 65% 60%) 2px, transparent 2px)
+      `,
+      backgroundSize: "100% 26px, 56px 100%",
+      backgroundPosition: "0 0, 54px 0",
+    },
+    // NEW: Rainbow stripe grid with colored horizontal bands (reference image-17)
+    "rainbow-stripes": {
       backgroundColor: "hsl(45 30% 96%)",
       backgroundImage: `
         linear-gradient(hsl(350 55% 75% / 0.5) 1px, transparent 1px),
@@ -78,38 +116,32 @@ const getPatternStyle = (pattern: PaperPattern): React.CSSProperties => {
       backgroundSize: "10px 10px, 10px 10px, 100% 700px",
       backgroundPosition: "0 0, 0 0, 0 0",
     },
-    // Cyan graph paper with red accent lines
-    "graph-cyan": {
-      backgroundColor: "hsl(45 30% 96%)",
+    // NEW: Confetti grid with scattered colorful squares (reference image-18)
+    "confetti-scatter": {
+      backgroundColor: "hsl(10 20% 97%)",
       backgroundImage: `
-        linear-gradient(hsl(185 55% 65% / 0.6) 1px, transparent 1px),
-        linear-gradient(90deg, hsl(185 55% 65% / 0.6) 1px, transparent 1px),
-        linear-gradient(hsl(0 65% 60%) 2px, transparent 2px)
+        linear-gradient(hsl(350 20% 88% / 0.3) 1px, transparent 1px),
+        linear-gradient(90deg, hsl(350 20% 88% / 0.3) 1px, transparent 1px),
+        radial-gradient(circle, hsl(350 60% 70%) 2px, transparent 2px),
+        radial-gradient(circle, hsl(200 60% 60%) 2px, transparent 2px),
+        radial-gradient(circle, hsl(100 50% 55%) 2px, transparent 2px),
+        radial-gradient(circle, hsl(35 70% 60%) 2px, transparent 2px)
       `,
-      backgroundSize: "10px 10px, 10px 10px, 100% 100px",
-      backgroundPosition: "0 0, 0 0, 0 0",
+      backgroundSize: "12px 12px, 12px 12px, 180px 150px, 220px 170px, 200px 190px, 160px 140px",
+      backgroundPosition: "0 0, 0 0, 15px 20px, 80px 60px, 120px 100px, 50px 130px",
     },
-    // Dot grid
-    dots: {
-      backgroundColor: "hsl(45 25% 95%)",
-      backgroundImage: "radial-gradient(circle, hsl(30 10% 35%) 1.5px, transparent 1.5px)",
-      backgroundSize: "22px 22px",
-    },
-    // Horizontal lines
-    lines: {
-      backgroundColor: "hsl(42 25% 93%)",
-      backgroundImage: "linear-gradient(hsl(35 15% 70% / 0.6) 1px, transparent 1px)",
-      backgroundSize: "100% 26px",
-    },
-    // Ruled paper with red margin line
-    ruled: {
-      backgroundColor: "hsl(50 35% 95%)",
+    // NEW: Grid with green plus/cross signs at intersections (reference image-19)
+    "green-cross": {
+      backgroundColor: "hsl(48 35% 95%)",
       backgroundImage: `
-        linear-gradient(hsl(40 15% 75% / 0.5) 1px, transparent 1px),
-        linear-gradient(90deg, hsl(0 65% 60%) 2px, transparent 2px)
+        linear-gradient(hsl(45 10% 80% / 0.4) 1px, transparent 1px),
+        linear-gradient(90deg, hsl(45 10% 80% / 0.4) 1px, transparent 1px),
+        radial-gradient(circle, hsl(90 50% 45%) 1.5px, transparent 1.5px),
+        linear-gradient(hsl(90 50% 45%) 1px, transparent 1px),
+        linear-gradient(90deg, hsl(90 50% 45%) 1px, transparent 1px)
       `,
-      backgroundSize: "100% 26px, 56px 100%",
-      backgroundPosition: "0 0, 54px 0",
+      backgroundSize: "40px 40px, 40px 40px, 40px 40px, 40px 4px, 4px 40px",
+      backgroundPosition: "0 0, 0 0, 20px 20px, 18px 20px, 20px 18px",
     },
   };
   
@@ -143,6 +175,9 @@ export function PatternPreview({ pattern, isSelected, onClick }: {
     dots: "Dots",
     lines: "Lines",
     ruled: "Ruled",
+    "rainbow-stripes": "Stripes",
+    "confetti-scatter": "Scatter",
+    "green-cross": "Cross",
   };
 
   return (
@@ -174,6 +209,9 @@ export const paperPatterns: PaperPattern[] = [
   "graph-cyan",
   "grid-confetti",
   "graph-rainbow",
+  "rainbow-stripes",
+  "confetti-scatter",
+  "green-cross",
 ];
 
 export default PaperBackground;
