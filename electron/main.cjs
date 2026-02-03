@@ -1,5 +1,6 @@
 const { app, BrowserWindow, ipcMain, Menu } = require('electron');
 const path = require('path');
+const fs = require('fs');
 const { spawn } = require('child_process');
 const { autoUpdater } = require('electron-updater');
 
@@ -11,23 +12,105 @@ let isDev = true;
 let mainWindow;
 let backendProcess;
 
+// Helper: wait until a TCP port on localhost accepts connections
+function waitForPort(port, timeoutMs = 10000) {
+  const net = require('net');
+  const start = Date.now();
+
+  return new Promise((resolve, reject) => {
+    (function attempt() {
+      const socket = net.connect({ port, host: '127.0.0.1' }, () => {
+        socket.destroy();
+        return resolve(true);
+      });
+
+      socket.on('error', () => {
+        socket.destroy();
+        if (Date.now() - start > timeoutMs) return reject(new Error('timeout'));
+        setTimeout(attempt, 250);
+      });
+    })();
+  });
+}
+
 // Start Express backend server
-function startBackend(backendPath) {
-  return new Promise((resolve) => {
-    console.log('Starting backend from:', backendPath);
-    
-    backendProcess = spawn('node', [backendPath], {
-      cwd: path.dirname(backendPath),
-      stdio: 'ignore',
-      detached: false,
-    });
+function startBackend() {
+  return new Promise(async (resolve) => {
+    // candidate paths to try (in order)
+    const candidates = [];
 
-    backendProcess.on('error', (err) => {
-      console.error('Failed to start backend:', err);
-    });
+    // development fallback
+    candidates.push(path.join(__dirname, '../backend/index.js'));
 
-    // Wait a bit for backend to start
-    setTimeout(() => resolve(), 1500);
+    // common packaged locations
+    candidates.push(path.join(process.resourcesPath, 'app.asar.unpacked', 'backend', 'index.js'));
+    candidates.push(path.join(process.resourcesPath, 'app', 'backend', 'index.js'));
+    candidates.push(path.join(app.getAppPath(), 'backend', 'index.js'));
+
+    let chosen = null;
+    for (const p of candidates) {
+      try {
+        console.log('🔍 Checking backend candidate:', p, 'exists=', fs.existsSync(p));
+        if (fs.existsSync(p)) {
+          chosen = p;
+          break;
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+
+    if (!chosen) {
+      console.error('❌ No backend file found in expected locations');
+      return resolve();
+    }
+
+    console.log('🔄 Attempting to start backend from:', chosen);
+
+    // Try require() first (in-process)
+    try {
+      console.log('📦 Requiring backend module in-process:', chosen);
+      require(chosen);
+      console.log('✓ Backend started via require()');
+    } catch (err) {
+      console.error('✗ Requiring backend failed:', err && err.message);
+
+      // Fallback: spawn an external process using the electron/node executable
+      const backendDir = path.dirname(chosen);
+      console.log('🚀 Spawning backend process in:', backendDir, 'via', process.execPath);
+
+      backendProcess = spawn(process.execPath, [chosen], {
+        cwd: backendDir,
+        stdio: ['ignore', 'pipe', 'pipe'],
+        detached: false,
+      });
+
+      backendProcess.stdout?.on('data', (data) => {
+        console.log('✓ [Backend]', data.toString().trim());
+      });
+
+      backendProcess.stderr?.on('data', (data) => {
+        console.error('✗ [Backend Error]', data.toString().trim());
+      });
+
+      backendProcess.on('error', (err) => {
+        console.error('❌ Failed to start backend process:', err && err.message);
+      });
+
+      backendProcess.on('exit', (code, signal) => {
+        console.warn('⚠ Backend process exited with code:', code, 'signal:', signal);
+      });
+    }
+
+    // Wait until the backend port accepts connections (or timeout)
+    try {
+      await waitForPort(API_PORT, 12000);
+      console.log('✓ Backend is responding on port', API_PORT);
+    } catch (e) {
+      console.warn('⚠ Backend did not respond within timeout:', e && e.message);
+    }
+
+    resolve();
   });
 }
 
@@ -45,8 +128,8 @@ function createWindow() {
       enableRemoteModule: false,
     },
     icon: isDev 
-      ? path.join(__dirname, '../public/icon.png')
-      : path.join(process.resourcesPath, 'app.asar', 'public', 'icon.png'),
+      ? path.join(__dirname, '../public/FucosFlow.ico')
+      : path.join(process.resourcesPath, 'app.asar', 'public', 'FucosFlow.ico'),
   });
 
   // Load app
@@ -55,12 +138,14 @@ function createWindow() {
     startUrl = `http://localhost:${PORT}`;
   } else {
     // In production, load from dist folder
-    // app.getAppPath() automatically handles asar unpacking
     const distPath = path.join(app.getAppPath(), 'dist', 'index.html');
     startUrl = `file://${distPath}`;
     console.log('App path:', app.getAppPath());
     console.log('Loading production app from:', distPath);
+    console.log('File exists:', fs.existsSync(distPath));
   }
+
+  console.log('Loading URL:', startUrl);
 
   mainWindow.loadURL(startUrl);
 
@@ -73,17 +158,8 @@ function createWindow() {
     console.error('Renderer process crashed');
   });
 
-  // Temporary: Show dev tools in production to debug
-  if (!isDev) {
-    // Uncomment to debug production app
-    // mainWindow.webContents.openDevTools();
-  }
-
-  // Only open DevTools if in development AND mainWindow exists
-  // Comment this out for production
-  // if (isDev) {
-  //   mainWindow.webContents.openDevTools();
-  // }
+  // Open DevTools in development for debugging
+  if (isDev) mainWindow.webContents.openDevTools();
 
   mainWindow.on('closed', () => {
     mainWindow = null;
@@ -151,17 +227,11 @@ app.on('ready', async () => {
   // Check if app is packaged to determine dev mode
   isDev = !app.isPackaged;
 
-  // Determine backend path based on dev or production
-  let backendPath;
-  if (isDev) {
-    backendPath = path.join(__dirname, '../backend/index.js');
-  } else {
-    // In production, use app.getAppPath() which handles asar
-    backendPath = path.join(app.getAppPath(), 'backend', 'index.js');
-  }
-
-  console.log('Backend path:', backendPath);
-  console.log('Is packaged:', app.isPackaged);
+  console.log('📋 App Configuration:');
+  console.log('  - isDev:', isDev);
+  console.log('  - app.isPackaged:', app.isPackaged);
+  console.log('  - process.resourcesPath:', process.resourcesPath);
+  console.log('  - app.getAppPath():', app.getAppPath());
 
   // Configure auto-updater (only in production/packaged)
   if (!isDev) {
@@ -186,7 +256,7 @@ app.on('ready', async () => {
   }
 
   // Start backend
-  await startBackend(backendPath);
+  await startBackend();
 
   // Create window
   createWindow();

@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useRef, forwardRef } from "react";
 import { motion, AnimatePresence, useInView } from "motion/react";
 import { useNotes } from "@/contexts/NotesContext";
 import { Button } from "@/components/ui/button";
@@ -14,13 +14,22 @@ interface AnimatedNoteItemProps {
   index: number;
 }
 
-const AnimatedNoteItem = ({ noteId, title, isSelected, onClick, onDelete, index }: AnimatedNoteItemProps) => {
-  const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { amount: 0.5, once: true });
+const AnimatedNoteItem = forwardRef<HTMLDivElement, AnimatedNoteItemProps>(
+  ({ noteId, title, isSelected, onClick, onDelete, index }, ref) => {
+    const localRef = useRef<HTMLDivElement>(null);
+    const inView = useInView(localRef, { amount: 0.5, once: true });
 
-  return (
+    // merge forwarded ref and localRef
+    const setRefs = (node: HTMLDivElement | null) => {
+      localRef.current = node;
+      if (!ref) return;
+      if (typeof ref === 'function') ref(node);
+      else if (ref) (ref as any).current = node;
+    };
+
+    return (
     <motion.div
-      ref={ref}
+      ref={setRefs}
       layout
       initial={{ scale: 0.8, opacity: 0, x: -20 }}
       animate={inView ? { scale: 1, opacity: 1, x: 0 } : { scale: 0.8, opacity: 0, x: -20 }}
@@ -53,8 +62,9 @@ const AnimatedNoteItem = ({ noteId, title, isSelected, onClick, onDelete, index 
         <Trash2 className="w-3 h-3" />
       </Button>
     </motion.div>
-  );
-};
+    );
+  }
+);
 
 const NotesList = () => {
   const { 
@@ -112,7 +122,7 @@ const NotesList = () => {
 
       {/* Notes List */}
       <div className="flex-1 overflow-y-auto space-y-1">
-        <AnimatePresence mode="popLayout">
+        <AnimatePresence>
           {filteredNotes.length === 0 ? (
             <motion.div
               initial={{ opacity: 0 }}

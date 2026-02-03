@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, HashRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import Notes from "./pages/Notes";
 import NotFound from "./pages/NotFound";
@@ -12,6 +12,9 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 
 const queryClient = new QueryClient();
 
+// Use HashRouter for Electron (file:// protocol), BrowserRouter for web
+const Router = (window as any).electron?.isElectron ? HashRouter : BrowserRouter;
+
 const App = () => (
   <ErrorBoundary>
     <ThemeProvider>
@@ -20,14 +23,14 @@ const App = () => (
           <Toaster />
           <Sonner />
           <UpdateNotification />
-          <BrowserRouter>
+          <Router>
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/notes" element={<Notes />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
-          </BrowserRouter>
+          </Router>
         </TooltipProvider>
       </QueryClientProvider>
     </ThemeProvider>
