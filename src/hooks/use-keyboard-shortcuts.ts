@@ -9,6 +9,10 @@ interface KeyboardShortcuts {
   onEscape?: () => void;
   onToggleFolders?: () => void;
   onToggleNotesList?: () => void;
+  // Timer shortcuts
+  onTimerToggle?: () => void;
+  onTimerReset?: () => void;
+  onTimerSave?: () => void;
 }
 
 export const useKeyboardShortcuts = (shortcuts: KeyboardShortcuts) => {
@@ -54,6 +58,30 @@ export const useKeyboardShortcuts = (shortcuts: KeyboardShortcuts) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'l') {
         e.preventDefault();
         shortcuts.onToggleNotesList?.();
+      }
+      
+      // Space: Toggle Timer (when not in input/textarea)
+      if (e.code === 'Space' && shortcuts.onTimerToggle) {
+        const target = e.target as HTMLElement;
+        const isInputField = target.tagName === 'INPUT' || 
+                            target.tagName === 'TEXTAREA' || 
+                            target.isContentEditable;
+        if (!isInputField) {
+          e.preventDefault();
+          shortcuts.onTimerToggle();
+        }
+      }
+      
+      // Ctrl/Cmd + Shift + S: Save Timer Session
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'S') {
+        e.preventDefault();
+        shortcuts.onTimerSave?.();
+      }
+      
+      // Ctrl/Cmd + R: Reset Timer (prevent browser refresh)
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'r' && shortcuts.onTimerReset) {
+        e.preventDefault();
+        shortcuts.onTimerReset();
       }
       
       // Escape: Close dialogs

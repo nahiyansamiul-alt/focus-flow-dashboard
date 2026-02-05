@@ -1,5 +1,57 @@
 import { useSession } from "@/contexts/SessionContext";
+import { useNoteTimer } from "@/contexts/NoteTimerContext";
 import { useMemo } from "react";
+import { BookOpen, Play, Pause } from "lucide-react";
+import { cn } from "@/lib/utils";
+
+const ActiveNoteSession = () => {
+  const { time, isRunning, noteTitle } = useNoteTimer();
+  
+  if (!isRunning && time === 0) return null;
+  
+  const hours = Math.floor(time / 3600);
+  const minutes = Math.floor((time % 3600) / 60);
+  const seconds = time % 60;
+  
+  const formatTime = () => {
+    if (hours > 0) {
+      return `${hours}:${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
+    }
+    return `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
+  };
+
+  return (
+    <div className={cn(
+      "border border-border p-4 bg-card",
+      isRunning && "border-primary/30 bg-primary/5"
+    )}>
+      <div className="flex items-center gap-2 mb-2">
+        <BookOpen className="w-4 h-4 text-primary" />
+        <span className="font-body text-xs uppercase tracking-widest text-muted-foreground">
+          Active Session
+        </span>
+        {isRunning ? (
+          <Play className="w-3 h-3 text-primary animate-pulse ml-auto" />
+        ) : (
+          <Pause className="w-3 h-3 text-muted-foreground ml-auto" />
+        )}
+      </div>
+      <div className="flex items-baseline gap-2">
+        <span className="font-display text-2xl font-bold tracking-tight text-foreground tabular-nums">
+          {formatTime()}
+        </span>
+        {isRunning && (
+          <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+        )}
+      </div>
+      {noteTitle && (
+        <p className="font-body text-xs text-muted-foreground mt-1 truncate" title={noteTitle}>
+          {noteTitle}
+        </p>
+      )}
+    </div>
+  );
+};
 
 const Stats = () => {
   const { sessions } = useSession();
@@ -61,22 +113,25 @@ const Stats = () => {
   }, [sessions]);
 
   return (
-    <div className="grid grid-cols-3 gap-4">
-      {stats.map((stat) => (
-        <div key={stat.label} className="border border-border p-4 bg-card">
-          <span className="font-body text-xs uppercase tracking-widest text-muted-foreground">
-            {stat.label}
-          </span>
-          <div className="mt-2">
-            <span className="font-display text-3xl font-bold tracking-tight text-foreground">
-              {stat.value}
+    <div className="space-y-4">
+      <ActiveNoteSession />
+      <div className="grid grid-cols-3 gap-4">
+        {stats.map((stat) => (
+          <div key={stat.label} className="border border-border p-4 bg-card">
+            <span className="font-body text-xs uppercase tracking-widest text-muted-foreground">
+              {stat.label}
             </span>
-            <p className="font-body text-xs text-muted-foreground mt-1">
-              {stat.sublabel}
-            </p>
+            <div className="mt-2">
+              <span className="font-display text-3xl font-bold tracking-tight text-foreground">
+                {stat.value}
+              </span>
+              <p className="font-body text-xs text-muted-foreground mt-1">
+                {stat.sublabel}
+              </p>
+            </div>
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 };
