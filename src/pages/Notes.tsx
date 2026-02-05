@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { NotesProvider, useNotes } from "@/contexts/NotesContext";
+import { useNoteTimer } from "@/contexts/NoteTimerContext";
 import FoldersSidebar from "@/components/FoldersSidebar";
 import NotesList from "@/components/NotesList";
 import MarkdownEditor from "@/components/MarkdownEditor";
@@ -13,6 +14,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 const NotesContent = () => {
   const navigate = useNavigate();
   const { getSelectedNote, updateNote, selectedNoteId, selectedFolderId, createNote, selectNote } = useNotes();
+  const { toggleTimer, resetTimer, saveSession } = useNoteTimer();
   const [isFoldersCollapsed, setIsFoldersCollapsed] = useState(false);
   const [isNotesListCollapsed, setIsNotesListCollapsed] = useState(false);
   
@@ -33,6 +35,9 @@ const NotesContent = () => {
   useKeyboardShortcuts({
     onToggleFolders: toggleFolders,
     onToggleNotesList: toggleNotesList,
+    onTimerToggle: toggleTimer,
+    onTimerReset: resetTimer,
+    onTimerSave: saveSession,
   });
 
   // Calculate panel widths based on collapse states

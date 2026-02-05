@@ -9,6 +9,8 @@ import NotFound from "./pages/NotFound";
 import { UpdateNotification } from "./components/UpdateNotification";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
+import { SessionProvider } from "./contexts/SessionContext";
+import { NoteTimerProvider } from "./contexts/NoteTimerContext";
 
 const queryClient = new QueryClient();
 
@@ -19,19 +21,23 @@ const App = () => (
   <ErrorBoundary>
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <UpdateNotification />
-          <Router>
-            <Routes>
-              <Route path="/" element={<Index />} />
-              <Route path="/notes" element={<Notes />} />
-              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </Router>
-        </TooltipProvider>
+        <SessionProvider>
+          <NoteTimerProvider>
+            <TooltipProvider>
+              <Toaster />
+              <Sonner />
+              <UpdateNotification />
+              <Router>
+                <Routes>
+                  <Route path="/" element={<Index />} />
+                  <Route path="/notes" element={<Notes />} />
+                  {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </Router>
+            </TooltipProvider>
+          </NoteTimerProvider>
+        </SessionProvider>
       </QueryClientProvider>
     </ThemeProvider>
   </ErrorBoundary>

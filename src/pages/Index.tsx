@@ -10,7 +10,6 @@ import MotivationalBox from "@/components/MotivationalBox";
 import ProductivityTips from "@/components/ProductivityTips";
 import KeyboardShortcutsModal, { KeyboardShortcutsButton } from "@/components/KeyboardShortcutsModal";
 import { ReminderForm } from "@/components/ReminderForm";
-import { SessionProvider } from "@/contexts/SessionContext";
 import { RemindersProvider } from "@/contexts/RemindersContext";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
@@ -85,11 +84,9 @@ const IndexContent = () => {
 
 const Index = () => {
   return (
-    <SessionProvider>
-      <RemindersProvider>
-        <IndexContent />
-      </RemindersProvider>
-    </SessionProvider>
+    <RemindersProvider>
+      <IndexContent />
+    </RemindersProvider>
   );
 };
 

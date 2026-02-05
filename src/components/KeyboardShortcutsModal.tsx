@@ -16,6 +16,9 @@ const shortcuts = [
   { keys: ["Ctrl", "K"], action: "Search" },
   { keys: ["Ctrl", "B"], action: "Toggle Folders Sidebar" },
   { keys: ["Ctrl", "L"], action: "Toggle Notes List" },
+  { keys: ["Space"], action: "Start/Pause Timer (Notes)" },
+  { keys: ["Ctrl", "Shift", "S"], action: "Save Timer Session" },
+  { keys: ["Ctrl", "R"], action: "Reset Timer" },
   { keys: ["Esc"], action: "Close Dialogs" },
 ];
 
