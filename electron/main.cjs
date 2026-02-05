@@ -67,9 +67,24 @@ function startBackend() {
 
     console.log('🔄 Attempting to start backend from:', chosen);
 
+    // Ensure the SQLite database is stored in a writable location when packaged.
+    // We pass this path via an env var that the backend reads.
+    let backendEnv = { ...process.env };
+    try {
+      // app.getPath('userData') is only valid after app is ready (which we are).
+      const userDataDir = app.getPath('userData');
+      const dbPath = path.join(userDataDir, 'focusflow.db');
+      backendEnv.FOCUSFLOW_DB_PATH = dbPath;
+      console.log('📁 Using DB path for backend:', dbPath);
+    } catch (e) {
+      console.warn('⚠ Could not determine userData path for DB:', e && e.message);
+    }
+
     // Try require() first (in-process)
     try {
       console.log('📦 Requiring backend module in-process:', chosen);
+      // Make env var visible before requiring backend
+      process.env.FOCUSFLOW_DB_PATH = backendEnv.FOCUSFLOW_DB_PATH || process.env.FOCUSFLOW_DB_PATH;
       require(chosen);
       console.log('✓ Backend started via require()');
     } catch (err) {
@@ -83,6 +98,7 @@ function startBackend() {
         cwd: backendDir,
         stdio: ['ignore', 'pipe', 'pipe'],
         detached: false,
+        env: backendEnv,
       });
 
       backendProcess.stdout?.on('data', (data) => {
@@ -127,9 +143,13 @@ function createWindow() {
       contextIsolation: true,
       enableRemoteModule: false,
     },
+    // App icon
+    // In development we load directly from the repo's public folder.
+    // In production, electron-builder copies buildResources (public) into process.resourcesPath,
+    // so we use the ICO placed there.
     icon: isDev 
       ? path.join(__dirname, '../public/FucosFlow.ico')
-      : path.join(process.resourcesPath, 'app.asar', 'public', 'FucosFlow.ico'),
+      : path.join(process.resourcesPath, 'FucosFlow.ico'),
   });
 
   // Load app

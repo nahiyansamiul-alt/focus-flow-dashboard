@@ -10,7 +10,6 @@
     "electron/**/*",
     "backend/**/*",
     "node_modules/**/*",
-    "backend/node_modules/**/*",
     "package.json"
   ],
   "asarUnpack": [
@@ -36,7 +35,8 @@
         ]
       }
     ],
-    "icon": "public/FucosFlow.ico"
+    "icon": "public/FucosFlow.ico",
+    "signAndEditExecutable": false
   },
   "nsis": {
     "oneClick": false,

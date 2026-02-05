@@ -9,7 +9,12 @@ interface FolderProps {
   onClick?: () => void;
 }
 
-const darkenColor = (hex: string, percent: number): string => {
+const darkenColor = (hex: string | null | undefined, percent: number): string => {
+  // Fallback to default color if value is missing or not a string
+  if (!hex || typeof hex !== 'string') {
+    hex = '#5227FF';
+  }
+
   let color = hex.startsWith('#') ? hex.slice(1) : hex;
   if (color.length === 3) {
     color = color
@@ -56,7 +61,10 @@ const Folder: React.FC<FolderProps> = ({
     }
   }, [open]);
 
-  const folderBackColor = darkenColor(color, 0.08);
+  // Ensure we always have a safe, non-null color string
+  const safeColor = color || '#5227FF';
+
+  const folderBackColor = darkenColor(safeColor, 0.08);
   const paper1 = darkenColor('#ffffff', 0.1);
   const paper2 = darkenColor('#ffffff', 0.05);
   const paper3 = '#ffffff';
@@ -92,7 +100,7 @@ const Folder: React.FC<FolderProps> = ({
   };
 
   const folderStyle: React.CSSProperties = {
-    '--folder-color': color,
+    '--folder-color': safeColor,
     '--folder-back-color': folderBackColor,
     '--paper-1': paper1,
     '--paper-2': paper2,
@@ -161,7 +169,7 @@ const Folder: React.FC<FolderProps> = ({
               !open ? 'group-hover:[transform:skew(15deg)_scaleY(0.6)]' : ''
             }`}
             style={{
-              backgroundColor: color,
+              backgroundColor: safeColor,
               borderRadius: '5px 10px 10px 10px',
               ...(open && { transform: 'skew(15deg) scaleY(0.6)' })
             }}
@@ -171,7 +179,7 @@ const Folder: React.FC<FolderProps> = ({
               !open ? 'group-hover:[transform:skew(-15deg)_scaleY(0.6)]' : ''
             }`}
             style={{
-              backgroundColor: color,
+              backgroundColor: safeColor,
               borderRadius: '5px 10px 10px 10px',
               ...(open && { transform: 'skew(-15deg) scaleY(0.6)' })
             }}
