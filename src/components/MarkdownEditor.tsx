@@ -31,6 +31,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useDebounce } from "@/hooks/use-debounce";
 import { PaperBackground, PatternPreview, paperPatterns, type PaperPattern } from "@/components/ui/paper-background";
+import NoteTimer from "@/components/NoteTimer";
 
 interface MarkdownEditorProps {
   content: string;
@@ -130,8 +131,10 @@ const MarkdownEditor = ({ content, title, onContentChange, onTitleChange }: Mark
 
   return (
     <div className="flex flex-col h-full">
-      {/* Title */}
-      <div className="mb-4 flex items-center gap-2">
+      {/* Timer and Title Row */}
+      <div className="mb-4 flex items-center gap-4">
+        <NoteTimer noteTitle={title} />
+        <div className="h-6 w-px bg-border" />
         {isEditingTitle ? (
           <div className="flex items-center gap-2 flex-1">
             <Input

@@ -177,7 +177,7 @@ const TodoList = () => {
 
   // Toggle todo completed in backend
   const toggleTodo = async (id: string) => {
-    const todo = todos.find((t) => (t._id === id || t.id === id));
+    const todo = todos.find((t) => (t._id === id || String(t.id) === id));
     if (!todo) return;
     try {
       await fetch(`${API_BASE_URL}/todos/${id}`, {
@@ -222,8 +222,8 @@ const TodoList = () => {
               key={todo._id || todo.id}
               todo={todo}
               index={index}
-              onToggle={() => toggleTodo(todo._id || todo.id || "")}
-              onDelete={() => deleteTodo(todo._id || todo.id || "")}
+              onToggle={() => toggleTodo(todo._id || String(todo.id) || "")}
+              onDelete={() => deleteTodo(todo._id || String(todo.id) || "")}
             />
           ))}
         </AnimatePresence>
