@@ -13,6 +13,9 @@ import { ReminderForm } from "@/components/ReminderForm";
 import { RemindersProvider } from "@/contexts/RemindersContext";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
+import { ActiveTimerIndicator } from "@/components/ActiveTimerIndicator";
+import { Button } from "@/components/ui/button";
+import { Palette } from "lucide-react";
 
 const IndexContent = () => {
   const navigate = useNavigate();
@@ -27,16 +30,32 @@ const IndexContent = () => {
     <div className="min-h-screen bg-background p-4 sm:p-8 md:p-12 lg:p-16">
       {/* Header */}
       <header className="mb-8 md:mb-16">
-        <h1 
-          className="font-display text-5xl sm:text-6xl md:text-8xl lg:text-9xl font-bold tracking-tighter text-foreground leading-none cursor-pointer hover:text-muted-foreground transition-colors"
-          onClick={() => navigate("/notes")}
-          title="Go to Notes"
-        >
-          FOCUS
-        </h1>
-        <p className="font-accent text-lg sm:text-xl md:text-2xl text-muted-foreground mt-2 italic">
-          Track your productivity
-        </p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 
+              className="font-display text-5xl sm:text-6xl md:text-8xl lg:text-9xl font-bold tracking-tighter text-foreground leading-none cursor-pointer hover:text-muted-foreground transition-colors"
+              onClick={() => navigate("/notes")}
+              title="Go to Notes"
+            >
+              FOCUS
+            </h1>
+            <p className="font-accent text-lg sm:text-xl md:text-2xl text-muted-foreground mt-2 italic">
+              Track your productivity
+            </p>
+          </div>
+          <div className="flex items-center gap-2 pt-2">
+            <ActiveTimerIndicator />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate("/canvas")}
+              className="gap-2"
+            >
+              <Palette className="w-4 h-4" />
+              <span className="hidden sm:inline">Canvas</span>
+            </Button>
+          </div>
+        </div>
       </header>
 
       {/* Main Grid Layout */}
