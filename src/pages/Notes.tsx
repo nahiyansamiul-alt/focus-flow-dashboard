@@ -7,9 +7,10 @@ import NotesList from "@/components/NotesList";
 import MarkdownEditor from "@/components/MarkdownEditor";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { ArrowLeft, FileText, Plus, FolderClosed, List } from "lucide-react";
+import { ArrowLeft, FileText, Plus, FolderClosed, List, Palette } from "lucide-react";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { ActiveTimerIndicator } from "@/components/ActiveTimerIndicator";
 
 const NotesContent = () => {
   const navigate = useNavigate();
@@ -85,7 +86,16 @@ const NotesContent = () => {
         <h1 className="font-display text-3xl md:text-4xl font-bold tracking-tighter ml-2">
           NOTES
         </h1>
+        <ActiveTimerIndicator compact className="ml-2" />
         <div className="flex-1" />
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => navigate("/canvas")}
+          title="Canvas"
+        >
+          <Palette className="w-5 h-5" />
+        </Button>
         <ThemeToggle />
         {selectedFolderId && (
           <Button

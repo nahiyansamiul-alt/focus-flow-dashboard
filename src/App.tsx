@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, HashRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import Notes from "./pages/Notes";
+import Canvas from "./pages/Canvas";
 import NotFound from "./pages/NotFound";
 import { UpdateNotification } from "./components/UpdateNotification";
 import { ErrorBoundary } from "./components/ErrorBoundary";
@@ -31,6 +32,7 @@ const App = () => (
                 <Routes>
                   <Route path="/" element={<Index />} />
                   <Route path="/notes" element={<Notes />} />
+                  <Route path="/canvas" element={<Canvas />} />
                   {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                   <Route path="*" element={<NotFound />} />
                 </Routes>
