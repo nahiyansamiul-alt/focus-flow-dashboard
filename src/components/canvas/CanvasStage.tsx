@@ -161,7 +161,7 @@ export const CanvasStage = ({
     setCurrentPath([]);
   };
 
-  const handleNodeClick = (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>, nodeId: string) => {
+  const handleNodeClick = (e: Konva.KonvaEventObject<MouseEvent | TouchEvent | Event>, nodeId: string) => {
     if (tool !== 'select') return;
     e.cancelBubble = true;
     setSelectedIds([nodeId]);
@@ -172,7 +172,7 @@ export const CanvasStage = ({
   };
 
   const handleTransformEnd = (e: Konva.KonvaEventObject<Event>, node: CanvasNode) => {
-    const konvaNode = e.target;
+    const konvaNode = e.target as Konva.Node;
     const scaleX = konvaNode.scaleX();
     const scaleY = konvaNode.scaleY();
 
@@ -198,7 +198,7 @@ export const CanvasStage = ({
     }
   };
 
-  const handleTextDblClick = (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>, node: TextNode) => {
+  const handleTextDblClick = (e: Konva.KonvaEventObject<MouseEvent | TouchEvent> | Konva.KonvaEventObject<Event>, node: TextNode) => {
     const textNode = e.target as Konva.Text;
     const stage = stageRef.current;
     if (!stage) return;

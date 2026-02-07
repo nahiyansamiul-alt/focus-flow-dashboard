@@ -1,6 +1,9 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
+import "katex/dist/katex.min.css";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -26,7 +29,8 @@ import {
   Eye,
   Edit,
   Check,
-  Grid3X3
+  Grid3X3,
+  Sigma
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useDebounce } from "@/hooks/use-debounce";
@@ -112,6 +116,9 @@ const MarkdownEditor = ({ content, title, onContentChange, onTitleChange }: Mark
     { icon: Link, action: () => insertMarkdown("[", "](url)", "link text"), title: "Link" },
     { icon: Image, action: () => insertMarkdown("![alt](", ")", "image-url"), title: "Image" },
     { icon: Video, action: () => insertMarkdown('<video src="', '" controls></video>', "video-url"), title: "Video" },
+    { type: "divider" },
+    { icon: Sigma, action: () => insertMarkdown("$", "$", "x^2"), title: "Inline Math" },
+    { icon: Sigma, action: () => insertMarkdown("$$\n", "\n$$", "\\frac{a}{b}"), title: "Math Block", variant: "block" },
   ];
 
   const handleTitleSubmit = useCallback(() => {
@@ -226,7 +233,8 @@ const MarkdownEditor = ({ content, title, onContentChange, onTitleChange }: Mark
           <PaperBackground pattern={paperPattern} className="h-full overflow-auto">
             <div className="p-4 prose prose-sm max-w-none dark:prose-invert min-h-full">
               <ReactMarkdown 
-                remarkPlugins={[remarkGfm]}
+                remarkPlugins={[remarkGfm, remarkMath]}
+                rehypePlugins={[rehypeKatex]}
                 components={{
                   img: ({ src, alt }) => (
                     <img 
