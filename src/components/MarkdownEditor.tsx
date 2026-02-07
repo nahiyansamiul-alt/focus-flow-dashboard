@@ -30,12 +30,14 @@ import {
   Edit,
   Check,
   Grid3X3,
-  Sigma
+  Download
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useDebounce } from "@/hooks/use-debounce";
 import { PaperBackground, PatternPreview, paperPatterns, type PaperPattern } from "@/components/ui/paper-background";
 import NoteTimer from "@/components/NoteTimer";
+import { LatexTemplates } from "@/components/editor/LatexTemplates";
+import { CodeBlock, InlineCode } from "@/components/editor/CodeBlock";
 
 interface MarkdownEditorProps {
   content: string;
@@ -111,15 +113,32 @@ const MarkdownEditor = ({ content, title, onContentChange, onTitleChange }: Mark
     { icon: List, action: () => insertMarkdown("- ", "", "list item"), title: "Bullet List" },
     { icon: ListOrdered, action: () => insertMarkdown("1. ", "", "list item"), title: "Numbered List" },
     { icon: Quote, action: () => insertMarkdown("> ", "", "quote"), title: "Quote" },
-    { icon: Code, action: () => insertMarkdown("`", "`", "code"), title: "Inline Code" },
+    { icon: Code, action: () => insertMarkdown("```\n", "\n```", "code"), title: "Code Block" },
     { type: "divider" },
     { icon: Link, action: () => insertMarkdown("[", "](url)", "link text"), title: "Link" },
     { icon: Image, action: () => insertMarkdown("![alt](", ")", "image-url"), title: "Image" },
     { icon: Video, action: () => insertMarkdown('<video src="', '" controls></video>', "video-url"), title: "Video" },
-    { type: "divider" },
-    { icon: Sigma, action: () => insertMarkdown("$", "$", "x^2"), title: "Inline Math" },
-    { icon: Sigma, action: () => insertMarkdown("$$\n", "\n$$", "\\frac{a}{b}"), title: "Math Block", variant: "block" },
   ];
+
+  const handleLatexInsert = useCallback((template: string, isBlock?: boolean) => {
+    if (isBlock) {
+      insertMarkdown("$$\n", "\n$$", template);
+    } else {
+      insertMarkdown("$", "$", template);
+    }
+  }, [insertMarkdown]);
+
+  const handleDownload = useCallback(() => {
+    const blob = new Blob([`# ${title}\n\n${localContent}`], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${title.replace(/[^a-z0-9]/gi, "_").toLowerCase()}.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, [title, localContent]);
 
   const handleTitleSubmit = useCallback(() => {
     const trimmedTitle = editableTitle.trim();
@@ -185,7 +204,23 @@ const MarkdownEditor = ({ content, title, onContentChange, onTitleChange }: Mark
           )
         ))}
         
+        <div className="w-px h-6 bg-border mx-1" />
+        
+        {/* LaTeX Templates */}
+        <LatexTemplates onInsert={handleLatexInsert} disabled={isPreview} />
+
         <div className="flex-1" />
+
+        {/* Download Button */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8"
+          title="Download as Markdown"
+          onClick={handleDownload}
+        >
+          <Download className="w-4 h-4" />
+        </Button>
 
         {/* Paper Pattern Selector */}
         <Popover>
@@ -236,6 +271,17 @@ const MarkdownEditor = ({ content, title, onContentChange, onTitleChange }: Mark
                 remarkPlugins={[remarkGfm, remarkMath]}
                 rehypePlugins={[rehypeKatex]}
                 components={{
+                  code: ({ className, children, ...props }) => {
+                    const match = /language-(\w+)/.exec(className || "");
+                    const isInline = !match && !className;
+                    return isInline ? (
+                      <InlineCode>{children}</InlineCode>
+                    ) : (
+                      <CodeBlock language={match?.[1]}>
+                        {String(children).replace(/\n$/, "")}
+                      </CodeBlock>
+                    );
+                  },
                   img: ({ src, alt }) => (
                     <img 
                       src={src} 
