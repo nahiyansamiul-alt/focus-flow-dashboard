@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { getApiBaseUrl } from "@/lib/api";
 
 export interface Session {
   start: string;
@@ -23,7 +24,6 @@ interface SessionContextType {
 const SessionContext = createContext<SessionContextType | undefined>(undefined);
 
 const STORAGE_KEY = "focus-sessions";
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
 export const SessionProvider = ({ children }: { children: ReactNode }) => {
   const [sessions, setSessions] = useState<DayData[]>([]);
@@ -42,8 +42,9 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
   const fetchSessions = async () => {
     try {
       setIsLoading(true);
-      console.log('[SessionContext] Starting fetch from:', `${API_BASE_URL}/history`);
-      const response = await fetch(`${API_BASE_URL}/history`);
+      const apiBase = getApiBaseUrl();
+      console.log('[SessionContext] Starting fetch from:', `${apiBase}/history`);
+      const response = await fetch(`${apiBase}/history`);
       console.log('[SessionContext] Response status:', response.status, response.ok);
       if (!response.ok) throw new Error("Failed to fetch history");
       

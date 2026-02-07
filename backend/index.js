@@ -335,6 +335,43 @@ app.post('/api/folders', (req, res) => {
   );
 });
 
+// Update folder (name, color)
+app.put('/api/folders/:id', (req, res) => {
+  const { name, color } = req.body;
+  const updates = [];
+  const values = [];
+
+  if (name !== undefined) {
+    updates.push('name = ?');
+    values.push(name);
+  }
+  if (color !== undefined) {
+    updates.push('color = ?');
+    values.push(color);
+  }
+
+  if (updates.length === 0) {
+    return res.status(400).json({ error: 'No fields to update' });
+  }
+
+  values.push(req.params.id);
+  const sql = `UPDATE folders SET ${updates.join(', ')} WHERE id = ?`;
+
+  db.run(sql, values, function(err) {
+    if (err) {
+      console.error('Error updating folder:', err);
+      return res.status(500).json({ error: 'Failed to update folder' });
+    }
+    db.get('SELECT * FROM folders WHERE id = ?', [req.params.id], (err2, row) => {
+      if (err2) {
+        console.error('Error fetching updated folder:', err2);
+        return res.status(500).json({ error: 'Failed to fetch updated folder' });
+      }
+      res.json(row || {});
+    });
+  });
+});
+
 // Delete folder and its notes
 app.delete('/api/folders/:id', (req, res) => {
   const folderId = req.params.id;

@@ -1,9 +1,14 @@
 // API Service Layer - Centralized API calls with error handling
-// Detect if running in Electron or browser
+// Single source of truth for API base URL (web + Electron)
 const isElectron = () => !!(window as any).electron;
-const API_BASE_URL = isElectron() 
+const API_BASE_URL = isElectron()
   ? 'http://localhost:5000/api'
   : import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
+/** Use this in contexts/components that call fetch() directly so endpoints work in both web and Electron. */
+export function getApiBaseUrl(): string {
+  return API_BASE_URL;
+}
 
 interface ApiResponse<T> {
   data?: T;

@@ -7,8 +7,7 @@ import { motion, AnimatePresence } from "motion/react";
 import TodoForm, { TodoFormData } from "./TodoForm";
 import GradientText from "@/components/ui/gradient-text";
 import { cn } from "@/lib/utils";
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+import { getApiBaseUrl } from "@/lib/api";
 
 interface Todo {
   _id?: string;
@@ -118,7 +117,7 @@ const TodoList = () => {
   // Fetch todos from backend
   const fetchTodos = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/todos`);
+      const res = await fetch(`${getApiBaseUrl()}/todos`);
       if (!res.ok) throw new Error(`Failed to fetch todos: ${res.statusText}`);
       const data = await res.json();
       setTodos(data);
@@ -131,7 +130,7 @@ const TodoList = () => {
   const addQuickTodo = async () => {
     if (quickTodo.trim()) {
       try {
-        const res = await fetch(`${API_BASE_URL}/todos`, {
+        const res = await fetch(`${getApiBaseUrl()}/todos`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ title: quickTodo.trim() }),
@@ -151,7 +150,7 @@ const TodoList = () => {
   // Add todo with full options
   const addTodoWithOptions = async (data: TodoFormData) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/todos`, {
+      const res = await fetch(`${getApiBaseUrl()}/todos`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -180,7 +179,7 @@ const TodoList = () => {
     const todo = todos.find((t) => (t._id === id || String(t.id) === id));
     if (!todo) return;
     try {
-      await fetch(`${API_BASE_URL}/todos/${id}`, {
+      await fetch(`${getApiBaseUrl()}/todos/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ completed: !todo.completed }),
@@ -193,7 +192,7 @@ const TodoList = () => {
 
   // Delete todo from backend
   const deleteTodo = async (id: string) => {
-    await fetch(`${API_BASE_URL}/todos/${id}`, {
+    await fetch(`${getApiBaseUrl()}/todos/${id}`, {
       method: "DELETE",
     });
     await fetchTodos();

@@ -1,10 +1,11 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { getApiBaseUrl } from "@/lib/api";
 
 interface Folder {
   _id?: string;
   id?: string;
   name: string;
-  color: string;
+  color?: string | null;
   createdAt?: Date;
 }
 
@@ -41,8 +42,6 @@ interface NotesContextType {
 
 const NotesContext = createContext<NotesContextType | undefined>(undefined);
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
-
 export const NotesProvider = ({ children }: { children: ReactNode }) => {
   const [folders, setFolders] = useState<Folder[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
@@ -66,7 +65,7 @@ export const NotesProvider = ({ children }: { children: ReactNode }) => {
   // Fetch all folders
   const fetchFolders = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/folders`);
+      const response = await fetch(`${getApiBaseUrl()}/folders`);
       if (!response.ok) throw new Error("Failed to fetch folders");
       const data = await response.json();
       // Sort folders by creation date (oldest first, newest last)
@@ -84,7 +83,7 @@ export const NotesProvider = ({ children }: { children: ReactNode }) => {
   // Fetch notes by folder
   const fetchNotesByFolder = async (folderId: string) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/notes/folder/${folderId}`);
+      const response = await fetch(`${getApiBaseUrl()}/notes/folder/${folderId}`);
       if (!response.ok) throw new Error("Failed to fetch notes");
       const data = await response.json();
       setNotes(data);
@@ -97,7 +96,7 @@ export const NotesProvider = ({ children }: { children: ReactNode }) => {
   // Create folder
   const createFolder = async (name: string, color: string): Promise<Folder | null> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/folders`, {
+      const response = await fetch(`${getApiBaseUrl()}/folders`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, color }),
@@ -115,7 +114,7 @@ export const NotesProvider = ({ children }: { children: ReactNode }) => {
   // Update folder
   const updateFolder = async (id: string, updates: Partial<Folder>) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/folders/${id}`, {
+      const response = await fetch(`${getApiBaseUrl()}/folders/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(updates),
@@ -133,7 +132,7 @@ export const NotesProvider = ({ children }: { children: ReactNode }) => {
   // Delete folder (and its notes via backend cascade)
   const deleteFolder = async (id: string) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/folders/${id}`, {
+      const response = await fetch(`${getApiBaseUrl()}/folders/${id}`, {
         method: "DELETE",
       });
       if (!response.ok) throw new Error("Failed to delete folder");
@@ -177,7 +176,7 @@ export const NotesProvider = ({ children }: { children: ReactNode }) => {
     }
     
     try {
-      const response = await fetch(`${API_BASE_URL}/notes`, {
+      const response = await fetch(`${getApiBaseUrl()}/notes`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title, content, folderId: selectedFolderId }),
@@ -203,7 +202,7 @@ export const NotesProvider = ({ children }: { children: ReactNode }) => {
       
       console.log(`[NotesContext] Updating note ${id} with:`, updateData);
       
-      const response = await fetch(`${API_BASE_URL}/notes/${id}`, {
+      const response = await fetch(`${getApiBaseUrl()}/notes/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(updateData),
@@ -229,7 +228,7 @@ export const NotesProvider = ({ children }: { children: ReactNode }) => {
   // Delete note
   const deleteNote = async (id: string) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/notes/${id}`, {
+      const response = await fetch(`${getApiBaseUrl()}/notes/${id}`, {
         method: "DELETE",
       });
       if (!response.ok) throw new Error("Failed to delete note");
