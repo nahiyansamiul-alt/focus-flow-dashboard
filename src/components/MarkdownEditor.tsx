@@ -33,11 +33,12 @@ import {
   Download
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useDebounce } from "@/hooks/use-debounce";
+import { useDebounceWithStatus } from "@/hooks/use-debounce";
 import { PaperBackground, PatternPreview, paperPatterns, type PaperPattern } from "@/components/ui/paper-background";
 import NoteTimer from "@/components/NoteTimer";
 import { LatexTemplates } from "@/components/editor/LatexTemplates";
 import { CodeBlock, InlineCode } from "@/components/editor/CodeBlock";
+import { SaveIndicator } from "@/components/editor/SaveIndicator";
 
 interface MarkdownEditorProps {
   content: string;
@@ -58,12 +59,17 @@ const MarkdownEditor = ({ content, title, onContentChange, onTitleChange }: Mark
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const titleChangeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Debounce content changes
-  useDebounce(localContent, 500, (debouncedContent) => {
-    if (debouncedContent !== content) {
-      onContentChange(debouncedContent);
-    }
-  });
+  // Debounce content changes with status tracking
+  const saveStatus = useDebounceWithStatus(
+    localContent, 
+    500, 
+    (debouncedContent) => {
+      if (debouncedContent !== content) {
+        onContentChange(debouncedContent);
+      }
+    },
+    content
+  );
 
   useEffect(() => {
     setEditableTitle(title);
@@ -182,6 +188,11 @@ const MarkdownEditor = ({ content, title, onContentChange, onTitleChange }: Mark
             {title}
           </h2>
         )}
+        
+        {/* Auto-save indicator */}
+        <div className="ml-auto">
+          <SaveIndicator status={saveStatus} />
+        </div>
       </div>
 
       {/* Toolbar */}
