@@ -15,7 +15,6 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { ActiveTimerIndicator } from "@/components/ActiveTimerIndicator";
 import { Button } from "@/components/ui/button";
-import { Palette } from "lucide-react";
 
 const IndexContent = () => {
   const navigate = useNavigate();
@@ -45,15 +44,6 @@ const IndexContent = () => {
           </div>
           <div className="flex items-center gap-2 pt-2">
             <ActiveTimerIndicator />
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => navigate("/canvas")}
-              className="gap-2"
-            >
-              <Palette className="w-4 h-4" />
-              <span className="hidden sm:inline">Canvas</span>
-            </Button>
           </div>
         </div>
       </header>
