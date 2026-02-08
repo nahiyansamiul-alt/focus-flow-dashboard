@@ -7,7 +7,7 @@ import NotesList from "@/components/NotesList";
 import MarkdownEditor from "@/components/MarkdownEditor";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { ArrowLeft, FileText, Plus, FolderClosed, List, Palette } from "lucide-react";
+import { ArrowLeft, FileText, Plus, FolderClosed, List, PenTool } from "lucide-react";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { ActiveTimerIndicator } from "@/components/ActiveTimerIndicator";
@@ -94,7 +94,7 @@ const NotesContent = () => {
           onClick={() => navigate("/canvas")}
           title="Canvas"
         >
-          <Palette className="w-5 h-5" />
+          <PenTool className="w-5 h-5" />
         </Button>
         <ThemeToggle />
         {selectedFolderId && (
