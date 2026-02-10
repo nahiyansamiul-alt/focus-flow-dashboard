@@ -84,43 +84,284 @@
     --contribution-max: 152 55% 12%;
   }
 
-  /* Olive Petal theme - Olive Petal, Golden Clover, Artic Daisy, Rose Blush, Peach Blossom */
+  /* Olive Petal theme */
   .olive-petal {
     --background: 50 40% 87%;
     --foreground: 60 14% 37%;
-
     --card: 50 40% 87%;
     --card-foreground: 60 14% 37%;
-
     --popover: 50 40% 87%;
     --popover-foreground: 60 14% 37%;
-
     --primary: 60 14% 37%;
     --primary-foreground: 50 40% 92%;
-
     --secondary: 52 40% 55%;
     --secondary-foreground: 60 14% 25%;
-
     --muted: 50 30% 82%;
     --muted-foreground: 60 14% 45%;
-
     --accent: 24 45% 56%;
     --accent-foreground: 60 14% 25%;
-
     --destructive: 352 35% 51%;
     --destructive-foreground: 50 40% 92%;
-
     --border: 52 25% 60%;
     --input: 52 25% 60%;
     --ring: 60 14% 37%;
-
     --radius: 0px;
-
-    /* Contribution colors - Olive petal palette */
     --contribution-low: 52 40% 55%;
     --contribution-medium: 24 45% 56%;
     --contribution-high: 352 35% 51%;
     --contribution-max: 60 14% 37%;
+  }
+
+  /* Sage Garden - greens, purple, blue */
+  .sage-garden {
+    --background: 158 18% 90%;
+    --foreground: 270 22% 19%;
+    --card: 158 18% 90%;
+    --card-foreground: 270 22% 19%;
+    --popover: 158 18% 90%;
+    --popover-foreground: 270 22% 19%;
+    --primary: 270 22% 19%;
+    --primary-foreground: 158 18% 92%;
+    --secondary: 68 30% 67%;
+    --secondary-foreground: 270 22% 15%;
+    --muted: 158 12% 85%;
+    --muted-foreground: 270 15% 35%;
+    --accent: 170 24% 61%;
+    --accent-foreground: 270 22% 15%;
+    --destructive: 0 65% 50%;
+    --destructive-foreground: 158 18% 95%;
+    --border: 158 15% 72%;
+    --input: 158 15% 72%;
+    --ring: 270 22% 19%;
+    --radius: 0px;
+    --contribution-low: 170 24% 61%;
+    --contribution-medium: 68 30% 55%;
+    --contribution-high: 270 22% 30%;
+    --contribution-max: 270 22% 19%;
+  }
+
+  /* Forest Canopy - deep greens, moonstone blue */
+  .forest-canopy {
+    --background: 40 8% 92%;
+    --foreground: 110 66% 13%;
+    --card: 40 8% 92%;
+    --card-foreground: 110 66% 13%;
+    --popover: 40 8% 92%;
+    --popover-foreground: 110 66% 13%;
+    --primary: 110 66% 13%;
+    --primary-foreground: 40 8% 95%;
+    --secondary: 80 43% 34%;
+    --secondary-foreground: 40 8% 95%;
+    --muted: 40 6% 86%;
+    --muted-foreground: 110 30% 30%;
+    --accent: 195 33% 58%;
+    --accent-foreground: 110 66% 10%;
+    --destructive: 0 65% 50%;
+    --destructive-foreground: 40 8% 95%;
+    --border: 80 15% 65%;
+    --input: 80 15% 65%;
+    --ring: 110 66% 13%;
+    --radius: 0px;
+    --contribution-low: 195 33% 58%;
+    --contribution-medium: 80 43% 34%;
+    --contribution-high: 110 66% 20%;
+    --contribution-max: 110 66% 13%;
+  }
+
+  /* Retro Blaze - orange, yellow, blue */
+  .retro-blaze {
+    --background: 40 65% 89%;
+    --foreground: 25 97% 30%;
+    --card: 40 65% 89%;
+    --card-foreground: 25 97% 30%;
+    --popover: 40 65% 89%;
+    --popover-foreground: 25 97% 30%;
+    --primary: 25 97% 48%;
+    --primary-foreground: 40 100% 97%;
+    --secondary: 40 96% 57%;
+    --secondary-foreground: 25 97% 25%;
+    --muted: 40 45% 83%;
+    --muted-foreground: 25 50% 40%;
+    --accent: 195 65% 48%;
+    --accent-foreground: 40 100% 97%;
+    --destructive: 0 70% 45%;
+    --destructive-foreground: 40 100% 97%;
+    --border: 30 40% 70%;
+    --input: 30 40% 70%;
+    --ring: 25 97% 48%;
+    --radius: 0px;
+    --contribution-low: 40 96% 57%;
+    --contribution-medium: 25 97% 48%;
+    --contribution-high: 195 65% 48%;
+    --contribution-max: 207 78% 38%;
+  }
+
+  /* Outer Space - muted greens on dark slate */
+  .outer-space {
+    --background: 80 25% 88%;
+    --foreground: 190 10% 21%;
+    --card: 80 25% 88%;
+    --card-foreground: 190 10% 21%;
+    --popover: 80 25% 88%;
+    --popover-foreground: 190 10% 21%;
+    --primary: 190 10% 21%;
+    --primary-foreground: 80 25% 92%;
+    --secondary: 90 14% 46%;
+    --secondary-foreground: 80 25% 92%;
+    --muted: 80 18% 82%;
+    --muted-foreground: 190 8% 38%;
+    --accent: 160 12% 55%;
+    --accent-foreground: 190 10% 15%;
+    --destructive: 0 60% 50%;
+    --destructive-foreground: 80 25% 95%;
+    --border: 80 12% 68%;
+    --input: 80 12% 68%;
+    --ring: 190 10% 21%;
+    --radius: 0px;
+    --contribution-low: 160 12% 55%;
+    --contribution-medium: 90 14% 46%;
+    --contribution-high: 80 24% 38%;
+    --contribution-max: 190 10% 21%;
+  }
+
+  /* Tobacco Dusk - warm browns and muted tones */
+  .tobacco-dusk {
+    --background: 30 20% 88%;
+    --foreground: 340 10% 29%;
+    --card: 30 20% 88%;
+    --card-foreground: 340 10% 29%;
+    --popover: 30 20% 88%;
+    --popover-foreground: 340 10% 29%;
+    --primary: 340 10% 29%;
+    --primary-foreground: 30 20% 94%;
+    --secondary: 33 33% 54%;
+    --secondary-foreground: 30 20% 94%;
+    --muted: 30 14% 82%;
+    --muted-foreground: 340 8% 42%;
+    --accent: 170 5% 37%;
+    --accent-foreground: 30 20% 94%;
+    --destructive: 0 60% 50%;
+    --destructive-foreground: 30 20% 95%;
+    --border: 30 12% 65%;
+    --input: 30 12% 65%;
+    --ring: 340 10% 29%;
+    --radius: 0px;
+    --contribution-low: 33 33% 54%;
+    --contribution-medium: 170 5% 37%;
+    --contribution-high: 340 10% 29%;
+    --contribution-max: 290 5% 14%;
+  }
+
+  /* Elegance - terracotta, beige, olive */
+  .elegance {
+    --background: 30 25% 88%;
+    --foreground: 20 20% 18%;
+    --card: 30 25% 88%;
+    --card-foreground: 20 20% 18%;
+    --popover: 30 25% 88%;
+    --popover-foreground: 20 20% 18%;
+    --primary: 10 40% 30%;
+    --primary-foreground: 30 25% 94%;
+    --secondary: 40 14% 48%;
+    --secondary-foreground: 30 25% 94%;
+    --muted: 30 18% 82%;
+    --muted-foreground: 20 15% 38%;
+    --accent: 15 10% 47%;
+    --accent-foreground: 30 25% 94%;
+    --destructive: 0 60% 45%;
+    --destructive-foreground: 30 25% 95%;
+    --border: 30 15% 65%;
+    --input: 30 15% 65%;
+    --ring: 10 40% 30%;
+    --radius: 0px;
+    --contribution-low: 40 14% 48%;
+    --contribution-medium: 10 40% 30%;
+    --contribution-high: 15 10% 35%;
+    --contribution-max: 20 20% 18%;
+  }
+
+  /* Midnight Rose - dark purple and rose */
+  .midnight-rose {
+    --background: 280 15% 8%;
+    --foreground: 270 28% 72%;
+    --card: 280 15% 12%;
+    --card-foreground: 270 28% 72%;
+    --popover: 280 15% 12%;
+    --popover-foreground: 270 28% 72%;
+    --primary: 335 50% 35%;
+    --primary-foreground: 270 28% 90%;
+    --secondary: 340 57% 21%;
+    --secondary-foreground: 270 28% 80%;
+    --muted: 280 12% 15%;
+    --muted-foreground: 270 18% 50%;
+    --accent: 275 20% 45%;
+    --accent-foreground: 270 28% 90%;
+    --destructive: 0 60% 40%;
+    --destructive-foreground: 270 28% 90%;
+    --border: 280 12% 22%;
+    --input: 280 12% 22%;
+    --ring: 335 50% 35%;
+    --radius: 0px;
+    --contribution-low: 275 20% 45%;
+    --contribution-medium: 335 50% 35%;
+    --contribution-high: 340 57% 28%;
+    --contribution-max: 270 28% 72%;
+  }
+
+  /* Retro Reggae - warm amber on dark */
+  .retro-reggae {
+    --background: 30 10% 8%;
+    --foreground: 30 70% 62%;
+    --card: 30 10% 12%;
+    --card-foreground: 30 70% 62%;
+    --popover: 30 10% 12%;
+    --popover-foreground: 30 70% 62%;
+    --primary: 30 70% 55%;
+    --primary-foreground: 0 0% 5%;
+    --secondary: 5 40% 47%;
+    --secondary-foreground: 30 70% 85%;
+    --muted: 30 8% 15%;
+    --muted-foreground: 30 30% 45%;
+    --accent: 115 16% 46%;
+    --accent-foreground: 30 70% 90%;
+    --destructive: 5 55% 42%;
+    --destructive-foreground: 30 70% 90%;
+    --border: 30 10% 22%;
+    --input: 30 10% 22%;
+    --ring: 30 70% 55%;
+    --radius: 0px;
+    --contribution-low: 115 16% 46%;
+    --contribution-medium: 5 40% 47%;
+    --contribution-high: 30 70% 55%;
+    --contribution-max: 30 70% 70%;
+  }
+
+  /* Smoky Noir - floral white, smoky black */
+  .smoky-noir {
+    --background: 40 100% 97%;
+    --foreground: 70 17% 6%;
+    --card: 40 100% 97%;
+    --card-foreground: 70 17% 6%;
+    --popover: 40 100% 97%;
+    --popover-foreground: 70 17% 6%;
+    --primary: 70 17% 6%;
+    --primary-foreground: 40 100% 97%;
+    --secondary: 50 10% 31%;
+    --secondary-foreground: 40 100% 97%;
+    --muted: 40 25% 90%;
+    --muted-foreground: 50 8% 40%;
+    --accent: 40 25% 79%;
+    --accent-foreground: 70 17% 6%;
+    --destructive: 0 65% 50%;
+    --destructive-foreground: 40 100% 97%;
+    --border: 40 15% 78%;
+    --input: 40 15% 78%;
+    --ring: 70 17% 6%;
+    --radius: 0px;
+    --contribution-low: 40 25% 79%;
+    --contribution-medium: 50 10% 40%;
+    --contribution-high: 50 10% 25%;
+    --contribution-max: 70 17% 6%;
   }
 
   .dark {
