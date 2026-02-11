@@ -155,7 +155,7 @@ const Canvas = () => {
   }, [nodes.length, clearCanvas]);
 
   return (
-    <div className="h-screen bg-background flex flex-col overflow-hidden">
+    <div className="h-dvh max-h-screen bg-background flex flex-col overflow-hidden">
       {/* Header */}
       <header className="border-b border-border p-4 flex items-center gap-3 flex-shrink-0">
         <Button
