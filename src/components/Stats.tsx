@@ -90,6 +90,14 @@ const Stats = () => {
       }
     }
 
+    // Calculate average focus time
+    const allSessions = sessions.flatMap((d) => d.sessions);
+    const avgMinutes = allSessions.length > 0
+      ? Math.round(allSessions.reduce((acc, s) => acc + s.duration, 0) / allSessions.length)
+      : 0;
+    const avgH = Math.floor(avgMinutes / 60);
+    const avgM = avgMinutes % 60;
+
     const hours = Math.floor(totalMinutesToday / 60);
     const mins = totalMinutesToday % 60;
 
@@ -109,13 +117,18 @@ const Stats = () => {
         value: streak.toString(), 
         sublabel: streak === 1 ? "day" : "days" 
       },
+      { 
+        label: "Average", 
+        value: avgH > 0 ? `${avgH}h ${avgM}m` : `${avgM}m`, 
+        sublabel: "per session" 
+      },
     ];
   }, [sessions]);
 
   return (
     <div className="space-y-4">
       <ActiveNoteSession />
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {stats.map((stat) => (
           <div key={stat.label} className="border border-border p-4 bg-card">
             <span className="font-body text-xs uppercase tracking-widest text-muted-foreground">
