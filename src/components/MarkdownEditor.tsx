@@ -30,7 +30,8 @@ import {
   Edit,
   Check,
   Grid3X3,
-  Download
+  Download,
+  PenTool,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useDebounceWithStatus } from "@/hooks/use-debounce";
@@ -39,6 +40,8 @@ import NoteTimer from "@/components/NoteTimer";
 import { LatexTemplates } from "@/components/editor/LatexTemplates";
 import { CodeBlock, InlineCode } from "@/components/editor/CodeBlock";
 import { SaveIndicator } from "@/components/editor/SaveIndicator";
+import { InlineCanvas } from "@/components/editor/InlineCanvas";
+import { toast } from "sonner";
 
 interface MarkdownEditorProps {
   content: string;
@@ -51,6 +54,7 @@ const MarkdownEditor = ({ content, title, onContentChange, onTitleChange }: Mark
   const [isPreview, setIsPreview] = useState(true);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editableTitle, setEditableTitle] = useState(title);
+  const [showCanvas, setShowCanvas] = useState(false);
   const [localContent, setLocalContent] = useState(content);
   const [paperPattern, setPaperPattern] = useState<PaperPattern>(() => {
     const saved = localStorage.getItem("editor-paper-pattern");
@@ -133,6 +137,20 @@ const MarkdownEditor = ({ content, title, onContentChange, onTitleChange }: Mark
       insertMarkdown("$", "$", template);
     }
   }, [insertMarkdown]);
+
+  const handleCanvasSaveToMd = useCallback((mdSnippet: string) => {
+    // Insert the markdown snippet into the content
+    const textarea = textareaRef.current;
+    if (textarea && !isPreview) {
+      const start = textarea.selectionStart;
+      const newContent = localContent.substring(0, start) + "\n" + mdSnippet + "\n" + localContent.substring(start);
+      setLocalContent(newContent);
+    } else {
+      // Append to end
+      setLocalContent(prev => prev + "\n\n" + mdSnippet);
+    }
+    toast.success("Sketch markdown inserted");
+  }, [localContent, isPreview]);
 
   const handleDownload = useCallback(() => {
     const blob = new Blob([`# ${title}\n\n${localContent}`], { type: "text/markdown" });
@@ -220,6 +238,19 @@ const MarkdownEditor = ({ content, title, onContentChange, onTitleChange }: Mark
         {/* LaTeX Templates */}
         <LatexTemplates onInsert={handleLatexInsert} disabled={isPreview} />
 
+        <div className="w-px h-6 bg-border mx-1" />
+
+        {/* Canvas Toggle */}
+        <Button
+          variant={showCanvas ? "default" : "ghost"}
+          size="icon"
+          className="h-8 w-8"
+          onClick={() => setShowCanvas(!showCanvas)}
+          title="Drawing Canvas"
+        >
+          <PenTool className="w-4 h-4" />
+        </Button>
+
         <div className="flex-1" />
 
         {/* Download Button */}
@@ -273,8 +304,15 @@ const MarkdownEditor = ({ content, title, onContentChange, onTitleChange }: Mark
         </Button>
       </div>
 
+      {/* Canvas Panel */}
+      {showCanvas && (
+        <div className="h-[400px] border border-t-0 border-border">
+          <InlineCanvas onSaveToMd={handleCanvasSaveToMd} />
+        </div>
+      )}
+
       {/* Editor / Preview */}
-      <div className="flex-1 border border-t-0 border-border rounded-b-lg overflow-hidden">
+      <div className={cn("flex-1 border border-t-0 border-border rounded-b-lg overflow-hidden", showCanvas && "border-t")}>
         {isPreview ? (
           <PaperBackground pattern={paperPattern} className="h-full overflow-auto">
             <div className="p-4 prose prose-sm max-w-none dark:prose-invert min-h-full">
@@ -308,7 +346,6 @@ const MarkdownEditor = ({ content, title, onContentChange, onTitleChange }: Mark
                       {children}
                     </a>
                   ),
-                  // Handle video elements
                   video: (props) => (
                     <video {...props} className="max-w-full rounded-lg" controls />
                   ),
