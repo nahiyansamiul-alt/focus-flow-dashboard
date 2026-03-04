@@ -167,6 +167,7 @@ const NotesContent = () => {
               <MarkdownEditor
                 content={selectedNote.content}
                 title={selectedNote.title}
+                noteId={selectedNote._id || selectedNote.id || ""}
                 onContentChange={(content) => updateNote(selectedNote._id || selectedNote.id || "", { content })}
                 onTitleChange={(title) => updateNote(selectedNote._id || selectedNote.id || "", { title })}
               />
