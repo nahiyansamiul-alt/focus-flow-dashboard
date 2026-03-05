@@ -1,4 +1,4 @@
-export type Tool = 'select' | 'draw' | 'text';
+export type Tool = 'select' | 'draw' | 'text' | 'erase';
 
 export interface PathNode {
   id: string;
@@ -8,6 +8,7 @@ export interface PathNode {
   strokeWidth: number;
   x: number;
   y: number;
+  isEraser?: boolean;
 }
 
 export interface ImageNode {

@@ -79,6 +79,15 @@ const db = new sqlite3.Database(dbPath, (err) => {
       completed INTEGER DEFAULT 0,
       createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS drawings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      data TEXT NOT NULL,
+      thumbnail TEXT,
+      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
   `;
 
   db.exec(initSQL, (err) => {
@@ -611,6 +620,93 @@ app.delete('/api/reminders/:id', (req, res) => {
     if (err) {
       console.error('Error deleting reminder:', err);
       return res.status(500).json({ error: 'Failed to delete reminder' });
+    }
+    res.json({ success: true });
+  });
+});
+
+// Drawings
+app.get('/api/drawings', (req, res) => {
+  db.all('SELECT id, title, thumbnail, createdAt, updatedAt FROM drawings ORDER BY createdAt DESC', (err, rows) => {
+    if (err) {
+      console.error('Error fetching drawings:', err);
+      return res.status(500).json({ error: 'Failed to fetch drawings' });
+    }
+    res.json(rows || []);
+  });
+});
+
+app.post('/api/drawings', (req, res) => {
+  const { title, data, thumbnail } = req.body;
+  if (!title || !title.trim()) {
+    return res.status(400).json({ error: 'Title is required' });
+  }
+  if (!data) {
+    return res.status(400).json({ error: 'Drawing data is required' });
+  }
+  db.run(
+    'INSERT INTO drawings (title, data, thumbnail) VALUES (?, ?, ?)',
+    [title.trim(), data, thumbnail || null],
+    function(err) {
+      if (err) {
+        console.error('Error creating drawing:', err);
+        return res.status(500).json({ error: 'Failed to create drawing' });
+      }
+      db.get('SELECT * FROM drawings WHERE id = ?', [this.lastID], (err2, row) => {
+        if (err2) {
+          console.error('Error fetching created drawing:', err2);
+          return res.status(500).json({ error: 'Failed to fetch created drawing' });
+        }
+        res.status(201).json(row);
+      });
+    }
+  );
+});
+
+app.get('/api/drawings/:id', (req, res) => {
+  db.get('SELECT * FROM drawings WHERE id = ?', [req.params.id], (err, row) => {
+    if (err) {
+      console.error('Error fetching drawing:', err);
+      return res.status(500).json({ error: 'Failed to fetch drawing' });
+    }
+    if (!row) {
+      return res.status(404).json({ error: 'Drawing not found' });
+    }
+    res.json(row);
+  });
+});
+
+app.put('/api/drawings/:id', (req, res) => {
+  const { title, data, thumbnail } = req.body;
+  const updates = [];
+  const values = [];
+  
+  if (title !== undefined) { updates.push('title = ?'); values.push(title); }
+  if (data !== undefined) { updates.push('data = ?'); values.push(data); }
+  if (thumbnail !== undefined) { updates.push('thumbnail = ?'); values.push(thumbnail); }
+  
+  if (updates.length === 0) return res.json({ error: 'No fields to update' });
+  
+  updates.push('updatedAt = CURRENT_TIMESTAMP');
+  values.push(req.params.id);
+  
+  db.get(`UPDATE drawings SET ${updates.join(', ')} WHERE id = ? RETURNING *`, values, (err, row) => {
+    if (err) {
+      console.error('Error updating drawing:', err);
+      return res.status(500).json({ error: 'Failed to update drawing' });
+    }
+    if (!row) {
+      return res.status(404).json({ error: 'Drawing not found' });
+    }
+    res.json(row);
+  });
+});
+
+app.delete('/api/drawings/:id', (req, res) => {
+  db.run('DELETE FROM drawings WHERE id = ?', [req.params.id], function(err) {
+    if (err) {
+      console.error('Error deleting drawing:', err);
+      return res.status(500).json({ error: 'Failed to delete drawing' });
     }
     res.json({ success: true });
   });

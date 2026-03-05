@@ -52,6 +52,7 @@ const Canvas = () => {
       // Tool shortcuts
       if (e.key.toLowerCase() === 'v') setTool('select');
       if (e.key.toLowerCase() === 'd') setTool('draw');
+      if (e.key.toLowerCase() === 'e') setTool('erase');
       if (e.key.toLowerCase() === 't') setTool('text');
 
       // Delete

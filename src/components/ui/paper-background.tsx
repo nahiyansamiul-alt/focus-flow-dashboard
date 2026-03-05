@@ -21,13 +21,18 @@ interface PaperBackgroundProps {
 }
 
 // CSS-in-JS approach for inline styles
-const getPatternStyle = (pattern: PaperPattern): React.CSSProperties => {
+export const getPatternStyle = (pattern: PaperPattern): React.CSSProperties => {
   if (pattern === "none") return {};
   
+  const baseStyle: React.CSSProperties = {
+    backgroundAttachment: "fixed",
+  };
+
   const styles: Record<PaperPattern, React.CSSProperties> = {
     none: {},
     // Original simple clean grid
     grid: {
+      ...baseStyle,
       backgroundColor: "hsl(45 30% 96%)",
       backgroundImage: `
         linear-gradient(hsl(45 10% 75% / 0.5) 1px, transparent 1px),
@@ -37,6 +42,7 @@ const getPatternStyle = (pattern: PaperPattern): React.CSSProperties => {
     },
     // Original grid with green dots
     "grid-plus": {
+      ...baseStyle,
       backgroundColor: "hsl(45 30% 96%)",
       backgroundImage: `
         linear-gradient(hsl(45 10% 75% / 0.4) 1px, transparent 1px),
@@ -48,6 +54,7 @@ const getPatternStyle = (pattern: PaperPattern): React.CSSProperties => {
     },
     // Original pink/rose small grid
     "grid-confetti": {
+      ...baseStyle,
       backgroundColor: "hsl(45 30% 97%)",
       backgroundImage: `
         linear-gradient(hsl(350 40% 85% / 0.4) 1px, transparent 1px),
@@ -57,6 +64,7 @@ const getPatternStyle = (pattern: PaperPattern): React.CSSProperties => {
     },
     // Original pink/rose graph
     "graph-rainbow": {
+      ...baseStyle,
       backgroundColor: "hsl(45 30% 96%)",
       backgroundImage: `
         linear-gradient(hsl(350 60% 70% / 0.5) 1px, transparent 1px),
@@ -66,6 +74,7 @@ const getPatternStyle = (pattern: PaperPattern): React.CSSProperties => {
     },
     // Original cyan graph paper with red accent lines
     "graph-cyan": {
+      ...baseStyle,
       backgroundColor: "hsl(45 30% 96%)",
       backgroundImage: `
         linear-gradient(hsl(185 55% 65% / 0.6) 1px, transparent 1px),
@@ -77,18 +86,21 @@ const getPatternStyle = (pattern: PaperPattern): React.CSSProperties => {
     },
     // Original dot grid
     dots: {
+      ...baseStyle,
       backgroundColor: "hsl(45 25% 95%)",
       backgroundImage: "radial-gradient(circle, hsl(30 10% 35%) 1.5px, transparent 1.5px)",
       backgroundSize: "22px 22px",
     },
     // Original horizontal lines
     lines: {
+      ...baseStyle,
       backgroundColor: "hsl(42 25% 93%)",
       backgroundImage: "linear-gradient(hsl(35 15% 70% / 0.6) 1px, transparent 1px)",
       backgroundSize: "100% 26px",
     },
     // Original ruled paper with red margin line
     ruled: {
+      ...baseStyle,
       backgroundColor: "hsl(50 35% 95%)",
       backgroundImage: `
         linear-gradient(hsl(40 15% 75% / 0.5) 1px, transparent 1px),
@@ -99,6 +111,7 @@ const getPatternStyle = (pattern: PaperPattern): React.CSSProperties => {
     },
     // NEW: Rainbow stripe grid with colored horizontal bands (reference image-17)
     "rainbow-stripes": {
+      ...baseStyle,
       backgroundColor: "hsl(45 30% 96%)",
       backgroundImage: `
         linear-gradient(hsl(350 55% 75% / 0.5) 1px, transparent 1px),
@@ -118,6 +131,7 @@ const getPatternStyle = (pattern: PaperPattern): React.CSSProperties => {
     },
     // NEW: Confetti grid with scattered colorful squares (reference image-18)
     "confetti-scatter": {
+      ...baseStyle,
       backgroundColor: "hsl(10 20% 97%)",
       backgroundImage: `
         linear-gradient(hsl(350 20% 88% / 0.3) 1px, transparent 1px),
@@ -132,6 +146,7 @@ const getPatternStyle = (pattern: PaperPattern): React.CSSProperties => {
     },
     // NEW: Grid with green plus/cross signs at intersections (reference image-19)
     "green-cross": {
+      ...baseStyle,
       backgroundColor: "hsl(48 35% 95%)",
       backgroundImage: `
         linear-gradient(hsl(45 10% 80% / 0.4) 1px, transparent 1px),

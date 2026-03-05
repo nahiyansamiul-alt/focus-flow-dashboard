@@ -16,6 +16,7 @@ import {
   Trash2,
   Download,
   ImagePlus,
+  Eraser,
 } from "lucide-react";
 import { Tool } from "./types";
 import { cn } from "@/lib/utils";
@@ -39,6 +40,7 @@ interface CanvasToolbarProps {
 const tools: { id: Tool; icon: typeof MousePointer2; label: string }[] = [
   { id: 'select', icon: MousePointer2, label: 'Select (V)' },
   { id: 'draw', icon: Pencil, label: 'Draw (D)' },
+  { id: 'erase', icon: Eraser, label: 'Erase (E)' },
   { id: 'text', icon: Type, label: 'Text (T)' },
 ];
 

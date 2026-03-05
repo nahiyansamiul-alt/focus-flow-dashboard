@@ -85,6 +85,7 @@ export const CanvasStage = ({
   const getCursor = () => {
     switch (tool) {
       case 'draw': return 'crosshair';
+      case 'erase': return 'crosshair';
       case 'text': return 'text';
       default: return 'default';
     }
@@ -103,7 +104,7 @@ export const CanvasStage = ({
       if (clickedOnEmpty) {
         setSelectedIds([]);
       }
-    } else if (tool === 'draw') {
+    } else if (tool === 'draw' || tool === 'erase') {
       setIsDrawing(true);
       setCurrentPath([pos.x, pos.y]);
     } else if (tool === 'text' && clickedOnEmpty) {
@@ -121,7 +122,7 @@ export const CanvasStage = ({
   };
 
   const handleMouseMove = (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
-    if (!isDrawing || tool !== 'draw') return;
+    if (!isDrawing || (tool !== 'draw' && tool !== 'erase')) return;
     const stage = e.target.getStage();
     if (!stage) return;
     const pos = stage.getPointerPosition();
@@ -134,10 +135,11 @@ export const CanvasStage = ({
       const newPathNode: NewPathNode = {
         type: 'path',
         points: currentPath,
-        stroke: strokeColor,
+        stroke: tool === 'erase' ? '#000000' : strokeColor,
         strokeWidth: strokeWidth,
         x: 0,
         y: 0,
+        isEraser: tool === 'erase',
       };
       addNode(newPathNode);
     }
@@ -150,10 +152,11 @@ export const CanvasStage = ({
       const newPathNode: NewPathNode = {
         type: 'path',
         points: currentPath,
-        stroke: strokeColor,
+        stroke: tool === 'erase' ? '#000000' : strokeColor,
         strokeWidth: strokeWidth,
         x: 0,
         y: 0,
+        isEraser: tool === 'erase',
       };
       addNode(newPathNode);
     }
@@ -269,8 +272,8 @@ export const CanvasStage = ({
         onTouchEnd={handleMouseUp}
       >
         <Layer>
-          {/* Render paths */}
-          {nodes.filter((n): n is PathNode => n.type === 'path').map((node) => (
+          {/* Render regular paths */}
+          {nodes.filter((n): n is PathNode => n.type === 'path' && !n.isEraser).map((node) => (
             <Line
               key={node.id}
               id={node.id}
@@ -281,6 +284,21 @@ export const CanvasStage = ({
               lineCap="round"
               lineJoin="round"
               globalCompositeOperation="source-over"
+            />
+          ))}
+
+          {/* Render eraser paths */}
+          {nodes.filter((n): n is PathNode => n.type === 'path' && n.isEraser).map((node) => (
+            <Line
+              key={node.id}
+              id={node.id}
+              points={node.points}
+              stroke={node.stroke}
+              strokeWidth={node.strokeWidth}
+              tension={0.5}
+              lineCap="round"
+              lineJoin="round"
+              globalCompositeOperation="destination-out"
             />
           ))}
 
@@ -333,11 +351,12 @@ export const CanvasStage = ({
           {isDrawing && currentPath.length > 0 && (
             <Line
               points={currentPath}
-              stroke={strokeColor}
+              stroke={tool === 'erase' ? '#ffffff' : strokeColor}
               strokeWidth={strokeWidth}
               tension={0.5}
               lineCap="round"
               lineJoin="round"
+              globalCompositeOperation={tool === 'erase' ? 'destination-out' : 'source-over'}
             />
           )}
 

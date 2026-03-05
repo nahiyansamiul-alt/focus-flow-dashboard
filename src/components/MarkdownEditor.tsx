@@ -47,7 +47,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useDebounceWithStatus } from "@/hooks/use-debounce";
-import { PaperBackground, PatternPreview, paperPatterns, type PaperPattern } from "@/components/ui/paper-background";
+import { PaperBackground, PatternPreview, paperPatterns, type PaperPattern, getPatternStyle } from "@/components/ui/paper-background";
 import NoteTimer from "@/components/NoteTimer";
 import { LatexTemplates } from "@/components/editor/LatexTemplates";
 import { CodeBlock, InlineCode } from "@/components/editor/CodeBlock";
@@ -85,7 +85,7 @@ const MarkdownEditor = ({ content, title, noteId, onContentChange, onTitleChange
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editableTitle, setEditableTitle] = useState(title);
   const [annotationMode, setAnnotationMode] = useState(false);
-  const [localContent, setLocalContent] = useState(content);
+  const [localContent, setLocalContent] = useState(content || "");
   const [paperPattern, setPaperPattern] = useState<PaperPattern>(() => {
     const saved = localStorage.getItem("editor-paper-pattern");
     return (saved as PaperPattern) || "none";
@@ -93,29 +93,40 @@ const MarkdownEditor = ({ content, title, noteId, onContentChange, onTitleChange
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const titleChangeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastSentToBackendRef = useRef<string>(content || "");
+  const currentNoteIdRef = useRef(noteId);
 
   // Annotation state
   const ann = useAnnotations(noteId);
+
+  // Memoize the save callback to prevent unnecessary debounce re-triggers
+  const handleSave = useCallback((debouncedContent: string) => {
+    if (debouncedContent !== lastSentToBackendRef.current) {
+      lastSentToBackendRef.current = debouncedContent;
+      onContentChange(debouncedContent);
+    }
+  }, [onContentChange]);
 
   // Debounce content changes with status tracking
   const saveStatus = useDebounceWithStatus(
     localContent, 
     500, 
-    (debouncedContent) => {
-      if (debouncedContent !== content) {
-        onContentChange(debouncedContent);
-      }
-    },
-    content
+    handleSave,
+    content || ""
   );
 
   useEffect(() => {
     setEditableTitle(title);
   }, [title]);
 
+  // When switching to a different note, reset localContent
   useEffect(() => {
-    setLocalContent(content);
-  }, [content]);
+    if (noteId !== currentNoteIdRef.current) {
+      currentNoteIdRef.current = noteId;
+      setLocalContent(content || "");
+      lastSentToBackendRef.current = content || "";
+    }
+  }, [noteId, content]);
 
   useEffect(() => {
     localStorage.setItem("editor-paper-pattern", paperPattern);
@@ -435,8 +446,8 @@ const MarkdownEditor = ({ content, title, noteId, onContentChange, onTitleChange
         "flex-1 border border-t-0 border-border rounded-b-lg overflow-hidden",
       )}>
         {isPreview ? (
-          <div className="h-full overflow-auto relative">
-            <PaperBackground pattern={paperPattern} className="min-h-full">
+          <div className="h-full overflow-auto relative" style={getPatternStyle(paperPattern)}>
+            <div className="w-full h-full">
               <div ref={contentRef} className="p-4 prose prose-sm max-w-none dark:prose-invert min-h-full relative">
                 <ReactMarkdown 
                   remarkPlugins={[remarkGfm, remarkMath]}
@@ -476,7 +487,7 @@ const MarkdownEditor = ({ content, title, noteId, onContentChange, onTitleChange
                   {localContent || "*Start writing...*"}
                 </ReactMarkdown>
               </div>
-            </PaperBackground>
+            </div>
 
             {/* Annotation overlay — transparent canvas on top of rendered markdown */}
             <AnnotationOverlay

@@ -143,3 +143,23 @@ export const historyAPI = {
       }),
     }),
 };
+
+// DRAWINGS API
+export const drawingsAPI = {
+  getAll: () => fetchAPI<any[]>('/drawings'),
+  getById: (id: string) => fetchAPI<any>(`/drawings/${id}`),
+  create: (title: string, data: any, thumbnail?: string) =>
+    fetchAPI<any>('/drawings', {
+      method: 'POST',
+      body: JSON.stringify({ title, data, thumbnail }),
+    }),
+  update: (id: string, updates: any) =>
+    fetchAPI<any>(`/drawings/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    }),
+  delete: (id: string) =>
+    fetchAPI<any>(`/drawings/${id}`, {
+      method: 'DELETE',
+    }),
+};

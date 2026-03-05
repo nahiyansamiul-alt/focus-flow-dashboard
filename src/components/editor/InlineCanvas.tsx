@@ -243,9 +243,9 @@ export const InlineCanvas = ({ onSaveToMd }: InlineCanvasProps) => {
         id: genId(),
         tool: tool as 'pen' | 'highlighter' | 'eraser',
         points: currentPoints,
-        stroke: tool === 'eraser' ? '#ffffff' : strokeColor,
+        stroke: tool === 'eraser' ? '#999999' : strokeColor,
         strokeWidth: tool === 'highlighter' ? brushSize * 4 : tool === 'eraser' ? brushSize * 3 : brushSize,
-        opacity: tool === 'highlighter' ? 0.35 : 1,
+        opacity: tool === 'eraser' ? 0.5 : tool === 'highlighter' ? 0.35 : 1,
         globalCompositeOperation: tool === 'eraser' ? 'destination-out' : 'source-over',
       };
       const newEls = [...elements, newEl];
@@ -516,28 +516,32 @@ export const InlineCanvas = ({ onSaveToMd }: InlineCanvasProps) => {
 
           <div className="w-px h-6 bg-border mx-1" />
 
-          {/* Colors */}
-          <div className="flex items-center gap-0.5">
-            {COLORS.map(color => (
-              <button
-                key={color}
-                className={cn(
-                  'w-5 h-5 rounded-full border-2 transition-transform hover:scale-110',
-                  strokeColor === color ? 'border-primary ring-2 ring-primary/30' : 'border-border'
-                )}
-                style={{ backgroundColor: color }}
-                onClick={() => setStrokeColor(color)}
-              />
-            ))}
-            <Input
-              type="color"
-              value={strokeColor}
-              onChange={e => setStrokeColor(e.target.value)}
-              className="w-7 h-7 p-0 border-0 cursor-pointer"
-            />
-          </div>
+          {/* Colors - only show for pen/highlighter/line/rect/circle */}
+          {(tool === 'pen' || tool === 'highlighter' || tool === 'line' || tool === 'rect' || tool === 'circle' || tool === 'text') && (
+            <>
+              <div className="flex items-center gap-0.5">
+                {COLORS.map(color => (
+                  <button
+                    key={color}
+                    className={cn(
+                      'w-5 h-5 rounded-full border-2 transition-transform hover:scale-110',
+                      strokeColor === color ? 'border-primary ring-2 ring-primary/30' : 'border-border'
+                    )}
+                    style={{ backgroundColor: color }}
+                    onClick={() => setStrokeColor(color)}
+                  />
+                ))}
+                <Input
+                  type="color"
+                  value={strokeColor}
+                  onChange={e => setStrokeColor(e.target.value)}
+                  className="w-7 h-7 p-0 border-0 cursor-pointer"
+                />
+              </div>
 
-          <div className="w-px h-6 bg-border mx-1" />
+              <div className="w-px h-6 bg-border mx-1" />
+            </>
+          )}
 
           {/* Brush size */}
           <div className="flex items-center gap-1.5 min-w-[100px]">
@@ -634,9 +638,9 @@ export const InlineCanvas = ({ onSaveToMd }: InlineCanvasProps) => {
           onTouchEnd={handleMouseUp}
         >
           <Layer>
-            {/* Render elements */}
-            {elements.map(el => {
-              if (el.tool === 'pen' || el.tool === 'highlighter' || el.tool === 'eraser') {
+            {/* Render regular elements - pen, highlighter, lines, shapes */}
+            {elements.filter(el => el.tool !== 'eraser' && el.tool !== 'text').map(el => {
+              if (el.tool === 'pen' || el.tool === 'highlighter') {
                 const d = el as DrawElement;
                 return (
                   <Line
@@ -700,40 +704,73 @@ export const InlineCanvas = ({ onSaveToMd }: InlineCanvasProps) => {
                   />
                 );
               }
-              if (el.tool === 'text') {
-                const t = el as TextElement;
-                return (
-                  <KonvaText
-                    key={t.id}
-                    id={t.id}
-                    x={t.x}
-                    y={t.y}
-                    text={t.text}
-                    fontSize={t.fontSize}
-                    fill={t.fill}
-                    draggable
-                    visible={editingTextId !== t.id}
-                    onClick={() => setSelectedId(t.id)}
-                    onDblClick={() => handleTextDblClick(t)}
-                    onDblTap={() => handleTextDblClick(t)}
-                  />
-                );
-              }
               return null;
             })}
 
-            {/* Current freehand drawing */}
-            {isDrawing && (tool === 'pen' || tool === 'highlighter' || tool === 'eraser') && currentPoints.length > 0 && (
+            {/* Render text elements */}
+            {elements.filter((el): el is TextElement => el.tool === 'text').map((t) => (
+              <KonvaText
+                key={t.id}
+                id={t.id}
+                x={t.x}
+                y={t.y}
+                text={t.text}
+                fontSize={t.fontSize}
+                fill={t.fill}
+                draggable
+                visible={editingTextId !== t.id}
+                onClick={() => setSelectedId(t.id)}
+                onDblClick={() => handleTextDblClick(t)}
+                onDblTap={() => handleTextDblClick(t)}
+              />
+            ))}
+
+            {/* Render eraser elements on top */}
+            {elements.filter((el): el is DrawElement => el.tool === 'eraser').map((d) => (
               <Line
-                points={currentPoints}
-                stroke={tool === 'eraser' ? '#ffffff' : strokeColor}
-                strokeWidth={tool === 'highlighter' ? brushSize * 4 : tool === 'eraser' ? brushSize * 3 : brushSize}
-                opacity={tool === 'highlighter' ? 0.35 : 1}
-                globalCompositeOperation={tool === 'eraser' ? 'destination-out' : 'source-over'}
+                key={d.id}
+                id={d.id}
+                points={d.points}
+                stroke={d.stroke}
+                strokeWidth={d.strokeWidth}
+                opacity={d.opacity}
+                globalCompositeOperation={d.globalCompositeOperation as GlobalCompositeOperation}
                 tension={0.5}
                 lineCap="round"
                 lineJoin="round"
+                onClick={() => setSelectedId(d.id)}
               />
+            ))}
+
+            {/* Current freehand drawing */}
+            {isDrawing && (tool === 'pen' || tool === 'highlighter' || tool === 'eraser') && currentPoints.length > 0 && (
+              <>
+                {tool === 'eraser' ? (
+                  // Eraser preview - show with semi-transparent gray and destination-out to see effect
+                  <Line
+                    points={currentPoints}
+                    stroke="#999999"
+                    strokeWidth={brushSize * 3}
+                    opacity={0.5}
+                    globalCompositeOperation="destination-out"
+                    tension={0.5}
+                    lineCap="round"
+                    lineJoin="round"
+                  />
+                ) : (
+                  // Pen and highlighter preview
+                  <Line
+                    points={currentPoints}
+                    stroke={strokeColor}
+                    strokeWidth={tool === 'highlighter' ? brushSize * 4 : brushSize}
+                    opacity={tool === 'highlighter' ? 0.35 : 1}
+                    globalCompositeOperation="source-over"
+                    tension={0.5}
+                    lineCap="round"
+                    lineJoin="round"
+                  />
+                )}
+              </>
             )}
 
             {/* Preview shapes */}
