@@ -95,6 +95,8 @@ const MarkdownEditor = ({ content, title, noteId, onContentChange, onTitleChange
   const titleChangeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastSentToBackendRef = useRef<string>(content || "");
   const currentNoteIdRef = useRef(noteId);
+  const trashHoldTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const [trashHolding, setTrashHolding] = useState(false);
 
   // Annotation state
   const ann = useAnnotations(noteId);
@@ -149,8 +151,11 @@ const MarkdownEditor = ({ content, title, noteId, onContentChange, onTitleChange
       if (ctrl && k === 'z' && !e.shiftKey) { e.preventDefault(); ann.undo(); }
       if (ctrl && (k === 'y' || (k === 'z' && e.shiftKey))) { e.preventDefault(); ann.redo(); }
 
-      if ((e.key === 'Delete' || e.key === 'Backspace')) {
-        // Delete selected handled inside overlay if needed
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (ann.selectedAnnotationId) {
+          ann.deleteAnnotation(ann.selectedAnnotationId);
+          ann.setSelectedAnnotationId(null);
+        }
       }
     };
     window.addEventListener('keydown', handleKey);
@@ -435,7 +440,41 @@ const MarkdownEditor = ({ content, title, noteId, onContentChange, onTitleChange
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={ann.redo} disabled={!ann.canRedo} title="Redo (Ctrl+Y)">
             <Redo2 className="w-4 h-4" />
           </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={ann.clearAll} title="Clear all annotations">
+          <Button
+            variant="ghost"
+            size="icon"
+            className={`h-8 w-8 transition-colors ${trashHolding ? 'text-destructive bg-destructive/20' : ann.selectedAnnotationId ? 'text-destructive hover:text-destructive' : 'text-muted-foreground'}`}
+            title={ann.selectedAnnotationId ? "Delete selected (hold 5s to clear all)" : "Hold 5s to clear all annotations"}
+            onMouseDown={() => {
+              setTrashHolding(true);
+              trashHoldTimerRef.current = setTimeout(() => {
+                ann.clearAll();
+                ann.setSelectedAnnotationId(null);
+                setTrashHolding(false);
+                toast.info('All annotations cleared');
+              }, 5000);
+            }}
+            onMouseUp={() => {
+              if (trashHoldTimerRef.current) {
+                clearTimeout(trashHoldTimerRef.current);
+                trashHoldTimerRef.current = null;
+              }
+              if (trashHolding) {
+                setTrashHolding(false);
+                if (ann.selectedAnnotationId) {
+                  ann.deleteAnnotation(ann.selectedAnnotationId);
+                  ann.setSelectedAnnotationId(null);
+                }
+              }
+            }}
+            onMouseLeave={() => {
+              if (trashHoldTimerRef.current) {
+                clearTimeout(trashHoldTimerRef.current);
+                trashHoldTimerRef.current = null;
+              }
+              setTrashHolding(false);
+            }}
+          >
             <Trash2 className="w-4 h-4" />
           </Button>
         </div>
@@ -500,6 +539,8 @@ const MarkdownEditor = ({ content, title, noteId, onContentChange, onTitleChange
               brushSize={ann.brushSize}
               active={annotationMode}
               contentRef={contentRef}
+              selectedId={ann.selectedAnnotationId}
+              onSelectionChange={ann.setSelectedAnnotationId}
             />
           </div>
         ) : (

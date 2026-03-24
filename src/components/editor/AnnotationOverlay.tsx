@@ -13,6 +13,8 @@ interface AnnotationOverlayProps {
   brushSize: number;
   active: boolean;
   contentRef: RefObject<HTMLDivElement>;
+  selectedId: string | null;
+  onSelectionChange: (id: string | null) => void;
 }
 
 const genId = () => `ann-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
@@ -27,6 +29,8 @@ export const AnnotationOverlay = ({
   brushSize,
   active,
   contentRef,
+  selectedId,
+  onSelectionChange,
 }: AnnotationOverlayProps) => {
   const stageRef = useRef<Konva.Stage>(null);
   const transformerRef = useRef<Konva.Transformer>(null);
@@ -35,7 +39,6 @@ export const AnnotationOverlay = ({
   const [currentPoints, setCurrentPoints] = useState<number[]>([]);
   const [shapeStart, setShapeStart] = useState<{ x: number; y: number } | null>(null);
   const [previewShape, setPreviewShape] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
 
   // Track content size with ResizeObserver
@@ -71,7 +74,7 @@ export const AnnotationOverlay = ({
   // Clear selection when deactivating
   useEffect(() => {
     if (!active) {
-      setSelectedId(null);
+      onSelectionChange(null);
       setIsDrawing(false);
       setCurrentPoints([]);
       setShapeStart(null);
@@ -91,12 +94,12 @@ export const AnnotationOverlay = ({
     if (tool === 'pen' || tool === 'highlighter' || tool === 'eraser') {
       setIsDrawing(true);
       setCurrentPoints([pos.x, pos.y]);
-      setSelectedId(null);
+      onSelectionChange(null);
     } else if (tool === 'line' || tool === 'rect' || tool === 'circle') {
       setIsDrawing(true);
       setShapeStart(pos);
       setPreviewShape({ x: pos.x, y: pos.y, w: 0, h: 0 });
-      setSelectedId(null);
+      onSelectionChange(null);
     } else if (tool === 'text' && clickedOnEmpty) {
       const newEl: TextAnnotation = {
         id: genId(),
@@ -108,9 +111,9 @@ export const AnnotationOverlay = ({
         color,
       };
       onAddAnnotation(newEl);
-      setSelectedId(newEl.id);
+      onSelectionChange(newEl.id);
     } else if (clickedOnEmpty) {
-      setSelectedId(null);
+      onSelectionChange(null);
     }
   }, [active, tool, color, onAddAnnotation]);
 
@@ -278,7 +281,7 @@ export const AnnotationOverlay = ({
             tension={0.5}
             lineCap="round"
             lineJoin="round"
-            onClick={() => active && setSelectedId(s.id)}
+            onClick={() => active && onSelectionChange(s.id)}
           />
         );
       }
@@ -292,7 +295,7 @@ export const AnnotationOverlay = ({
             stroke={l.color}
             strokeWidth={l.strokeWidth}
             lineCap="round"
-            onClick={() => active && setSelectedId(l.id)}
+            onClick={() => active && onSelectionChange(l.id)}
           />
         );
       }
@@ -308,7 +311,7 @@ export const AnnotationOverlay = ({
             height={r.height}
             stroke={r.color}
             strokeWidth={r.strokeWidth}
-            onClick={() => active && setSelectedId(r.id)}
+            onClick={() => active && onSelectionChange(r.id)}
           />
         );
       }
@@ -324,7 +327,7 @@ export const AnnotationOverlay = ({
             radiusY={c.radiusY}
             stroke={c.color}
             strokeWidth={c.strokeWidth}
-            onClick={() => active && setSelectedId(c.id)}
+            onClick={() => active && onSelectionChange(c.id)}
           />
         );
       }
@@ -341,7 +344,7 @@ export const AnnotationOverlay = ({
             fill={t.color}
             draggable={active}
             visible={editingTextId !== t.id}
-            onClick={() => active && setSelectedId(t.id)}
+            onClick={() => active && onSelectionChange(t.id)}
             onDblClick={() => handleTextDblClick(t)}
             onDblTap={() => handleTextDblClick(t)}
           />

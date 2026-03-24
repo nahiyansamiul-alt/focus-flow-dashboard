@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { getApiBaseUrl } from '@/lib/api';
 
 export type AnnotationTool = 'pen' | 'highlighter' | 'eraser' | 'line' | 'rect' | 'circle' | 'text' | 'pan';
 
@@ -67,6 +68,7 @@ export function useAnnotations(noteId: string) {
   const [tool, setTool] = useState<AnnotationTool>('pen');
   const [color, setColor] = useState('#ef4444');
   const [brushSize, setBrushSize] = useState(3);
+  const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null);
 
   const historyRef = useRef<AnnotationElement[][]>([[]]);
   const historyIndexRef = useRef(0);
@@ -76,41 +78,40 @@ export function useAnnotations(noteId: string) {
   useEffect(() => {
     if (!noteId) {
       setAnnotations([]);
+      setSelectedAnnotationId(null);
       historyRef.current = [[]];
       historyIndexRef.current = 0;
       setHistoryVersion(v => v + 1);
       return;
     }
-    const key = `annotations-${noteId}`;
-    const saved = localStorage.getItem(key);
-    if (saved) {
-      try {
-        const doc: AnnotationDocument = JSON.parse(saved);
+    setSelectedAnnotationId(null);
+    fetch(`${getApiBaseUrl()}/annotations/${noteId}`)
+      .then(r => r.ok ? r.json() : { annotations: [] })
+      .then((doc: AnnotationDocument) => {
         const loaded = doc.annotations || [];
         setAnnotations(loaded);
         historyRef.current = [loaded];
         historyIndexRef.current = 0;
         setHistoryVersion(v => v + 1);
-      } catch {
+      })
+      .catch(() => {
         setAnnotations([]);
         historyRef.current = [[]];
         historyIndexRef.current = 0;
         setHistoryVersion(v => v + 1);
-      }
-    } else {
-      setAnnotations([]);
-      historyRef.current = [[]];
-      historyIndexRef.current = 0;
-      setHistoryVersion(v => v + 1);
-    }
+      });
   }, [noteId]);
 
-  // Save annotations (debounced)
+  // Save annotations to backend (debounced)
   useEffect(() => {
     if (!noteId) return;
     const timeout = setTimeout(() => {
       const doc: AnnotationDocument = { version: 1, noteId, annotations };
-      localStorage.setItem(`annotations-${noteId}`, JSON.stringify(doc));
+      fetch(`${getApiBaseUrl()}/annotations/${noteId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(doc),
+      }).catch(err => console.error('Failed to save annotations:', err));
     }, 500);
     return () => clearTimeout(timeout);
   }, [annotations, noteId]);
@@ -182,6 +183,8 @@ export function useAnnotations(noteId: string) {
     setColor,
     brushSize,
     setBrushSize,
+    selectedAnnotationId,
+    setSelectedAnnotationId,
     addAnnotation,
     updateAnnotation,
     deleteAnnotation,

@@ -31,7 +31,14 @@ const db = new sqlite3.Database(dbPath, (err) => {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       title TEXT NOT NULL,
       completed INTEGER DEFAULT 0,
-      priority TEXT,
+      priority TEXT DEFAULT 'medium',
+      dueDate TEXT,
+      repeatType TEXT DEFAULT 'none',
+      repeatInterval INTEGER,
+      repeatDays TEXT,
+      repeatLimit INTEGER,
+      repeatCount INTEGER DEFAULT 0,
+      repeatEndDate TEXT,
       createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
       updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
     );
@@ -86,6 +93,13 @@ const db = new sqlite3.Database(dbPath, (err) => {
       data TEXT NOT NULL,
       thumbnail TEXT,
       createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS annotations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      noteId TEXT NOT NULL UNIQUE,
+      data TEXT NOT NULL,
       updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
     );
   `;
@@ -148,8 +162,30 @@ const db = new sqlite3.Database(dbPath, (err) => {
                   if (err6) console.warn('⚠ Could not ensure history.endTime:', err6.message);
                   else if (added6) console.log('✓ Added missing column history.endTime');
 
-                  // All migrations done — start server
-                  startServer();
+                  // Ensure todos repeat/dueDate fields
+                  const todoColumns = [
+                    ['dueDate TEXT', 'dueDate'],
+                    ['repeatType TEXT', 'repeatType'],
+                    ['repeatInterval INTEGER', 'repeatInterval'],
+                    ['repeatDays TEXT', 'repeatDays'],
+                    ['repeatLimit INTEGER', 'repeatLimit'],
+                    ['repeatCount INTEGER', 'repeatCount'],
+                    ['repeatEndDate TEXT', 'repeatEndDate'],
+                  ];
+                  let idx = 0;
+                  function ensureNextTodoCol() {
+                    if (idx >= todoColumns.length) {
+                      startServer();
+                      return;
+                    }
+                    const [colDef, colName] = todoColumns[idx++];
+                    ensureColumn('todos', colDef, colName, (err, added) => {
+                      if (err) console.warn(`⚠ Could not ensure todos.${colName}:`, err.message);
+                      else if (added) console.log(`✓ Added missing column todos.${colName}`);
+                      ensureNextTodoCol();
+                    });
+                  }
+                  ensureNextTodoCol();
                 });
               });
             });
@@ -174,43 +210,68 @@ app.get('/api/todos', (req, res) => {
 });
 
 app.post('/api/todos', (req, res) => {
-  const { title, completed, priority } = req.body;
+  const { title, completed, priority, dueDate, repeatType, repeatInterval, repeatDays, repeatLimit, repeatEndDate } = req.body;
   if (!title || !title.trim()) {
     return res.status(400).json({ error: 'Title is required' });
   }
+  const repeatDaysStr = repeatDays ? JSON.stringify(repeatDays) : null;
   db.run(
-    'INSERT INTO todos (title, completed, priority) VALUES (?, ?, ?)',
-    [title.trim(), completed ? 1 : 0, priority || 'medium'],
+    `INSERT INTO todos (title, completed, priority, dueDate, repeatType, repeatInterval, repeatDays, repeatLimit, repeatCount, repeatEndDate)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`,
+    [
+      title.trim(),
+      completed ? 1 : 0,
+      priority || 'medium',
+      dueDate || null,
+      repeatType || 'none',
+      repeatInterval || null,
+      repeatDaysStr,
+      repeatLimit || null,
+      repeatEndDate || null,
+    ],
     function(err) {
       if (err) {
         console.error('Error creating todo:', err);
         return res.status(500).json({ error: 'Failed to create todo' });
       }
-      res.status(201).json({ id: this.lastID, title, completed, priority });
+      db.get('SELECT * FROM todos WHERE id = ?', [this.lastID], (err2, row) => {
+        if (err2) return res.status(500).json({ error: 'Failed to fetch created todo' });
+        res.status(201).json(row);
+      });
     }
   );
 });
 
 app.put('/api/todos/:id', (req, res) => {
-  const { title, completed, priority } = req.body;
+  const { title, completed, priority, dueDate, repeatType, repeatInterval, repeatDays, repeatLimit, repeatCount, repeatEndDate } = req.body;
   const updates = [];
   const values = [];
-  
+
   if (title !== undefined) { updates.push('title = ?'); values.push(title); }
   if (completed !== undefined) { updates.push('completed = ?'); values.push(completed ? 1 : 0); }
   if (priority !== undefined) { updates.push('priority = ?'); values.push(priority); }
-  
-  if (updates.length === 0) return res.json({ error: 'No fields to update' });
-  
+  if (dueDate !== undefined) { updates.push('dueDate = ?'); values.push(dueDate || null); }
+  if (repeatType !== undefined) { updates.push('repeatType = ?'); values.push(repeatType); }
+  if (repeatInterval !== undefined) { updates.push('repeatInterval = ?'); values.push(repeatInterval || null); }
+  if (repeatDays !== undefined) { updates.push('repeatDays = ?'); values.push(repeatDays ? JSON.stringify(repeatDays) : null); }
+  if (repeatLimit !== undefined) { updates.push('repeatLimit = ?'); values.push(repeatLimit || null); }
+  if (repeatCount !== undefined) { updates.push('repeatCount = ?'); values.push(repeatCount); }
+  if (repeatEndDate !== undefined) { updates.push('repeatEndDate = ?'); values.push(repeatEndDate || null); }
+
+  if (updates.length === 0) return res.status(400).json({ error: 'No fields to update' });
+
   updates.push('updatedAt = CURRENT_TIMESTAMP');
   values.push(req.params.id);
-  
-  db.get(`UPDATE todos SET ${updates.join(', ')} WHERE id = ? RETURNING *`, values, (err, row) => {
+
+  db.run(`UPDATE todos SET ${updates.join(', ')} WHERE id = ?`, values, function(err) {
     if (err) {
       console.error('Error updating todo:', err);
       return res.status(500).json({ error: 'Failed to update todo' });
     }
-    res.json(row);
+    db.get('SELECT * FROM todos WHERE id = ?', [req.params.id], (err2, row) => {
+      if (err2) return res.status(500).json({ error: 'Failed to fetch updated todo' });
+      res.json(row);
+    });
   });
 });
 
@@ -621,6 +682,39 @@ app.delete('/api/reminders/:id', (req, res) => {
       console.error('Error deleting reminder:', err);
       return res.status(500).json({ error: 'Failed to delete reminder' });
     }
+    res.json({ success: true });
+  });
+});
+
+// Annotations
+app.get('/api/annotations/:noteId', (req, res) => {
+  db.get('SELECT data FROM annotations WHERE noteId = ?', [req.params.noteId], (err, row) => {
+    if (err) return res.status(500).json({ error: 'Failed to fetch annotations' });
+    if (!row) return res.json({ annotations: [] });
+    try {
+      res.json(JSON.parse(row.data));
+    } catch {
+      res.json({ annotations: [] });
+    }
+  });
+});
+
+app.put('/api/annotations/:noteId', (req, res) => {
+  const data = JSON.stringify(req.body);
+  db.run(
+    `INSERT INTO annotations (noteId, data, updatedAt) VALUES (?, ?, CURRENT_TIMESTAMP)
+     ON CONFLICT(noteId) DO UPDATE SET data = excluded.data, updatedAt = CURRENT_TIMESTAMP`,
+    [req.params.noteId, data],
+    function(err) {
+      if (err) return res.status(500).json({ error: 'Failed to save annotations' });
+      res.json({ success: true });
+    }
+  );
+});
+
+app.delete('/api/annotations/:noteId', (req, res) => {
+  db.run('DELETE FROM annotations WHERE noteId = ?', [req.params.noteId], function(err) {
+    if (err) return res.status(500).json({ error: 'Failed to delete annotations' });
     res.json({ success: true });
   });
 });

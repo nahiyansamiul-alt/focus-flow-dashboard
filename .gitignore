@@ -22,6 +22,7 @@ dist_electron
 *.AppImage
 *.deb
 *.zip
+*.db
 
 # Backend
 backend/node_modules

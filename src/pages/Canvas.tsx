@@ -9,17 +9,22 @@ import { CanvasToolbar } from '@/components/canvas/CanvasToolbar';
 import { CanvasStage } from '@/components/canvas/CanvasStage';
 import { useCanvasState } from '@/components/canvas/useCanvasState';
 import { NewImageNode } from '@/components/canvas/types';
+import { drawingsAPI } from '@/lib/api';
 import { toast } from 'sonner';
 
 const MAX_IMAGE_SIZE = 800;
+const AUTOSAVE_TITLE = 'canvas-autosave';
 
 const Canvas = () => {
   const navigate = useNavigate();
   const stageRef = useRef<Konva.Stage>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
+  const drawingIdRef = useRef<string | null>(null);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const {
     nodes,
+    setNodes,
     selectedIds,
     setSelectedIds,
     tool,
@@ -36,7 +41,49 @@ const Canvas = () => {
     clearCanvas,
     canUndo,
     canRedo,
+    pushToHistory,
   } = useCanvasState();
+
+  // Load autosave on mount
+  useEffect(() => {
+    drawingsAPI.getAll().then(res => {
+      if (!res.success || !res.data) return;
+      const saved = res.data.find((d: any) => d.title === AUTOSAVE_TITLE);
+      if (!saved) return;
+      drawingIdRef.current = String(saved.id);
+      drawingsAPI.getById(String(saved.id)).then(full => {
+        if (!full.success || !full.data?.data) return;
+        try {
+          const loaded = JSON.parse(full.data.data);
+          if (Array.isArray(loaded)) {
+            setNodes(loaded);
+            pushToHistory(loaded);
+          }
+        } catch { /* ignore corrupt data */ }
+      });
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Debounced auto-save whenever nodes change
+  useEffect(() => {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      const data = JSON.stringify(nodes);
+      if (drawingIdRef.current) {
+        drawingsAPI.update(drawingIdRef.current, { data });
+      } else {
+        drawingsAPI.create(AUTOSAVE_TITLE, data).then(res => {
+          if (res.success && res.data) {
+            drawingIdRef.current = String(res.data.id);
+          }
+        });
+      }
+    }, 1000);
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    };
+  }, [nodes]);
 
   // Keyboard shortcuts
   useEffect(() => {
