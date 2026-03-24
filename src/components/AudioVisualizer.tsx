@@ -8,6 +8,7 @@ type SourceType = "system" | "mic";
 const AudioVisualizer = () => {
   const [isActive, setIsActive] = useState(false);
   const [source, setSource] = useState<SourceType>("system");
+  const [trackName, setTrackName] = useState<string>("");
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animFrameRef = useRef<number>(0);
   const analyserRef = useRef<AnalyserNode | null>(null);
@@ -55,6 +56,7 @@ const AudioVisualizer = () => {
     streamRef.current = null;
     audioCtxRef.current = null;
     setIsActive(false);
+    setTrackName("");
   }, []);
 
   const connectStream = useCallback((stream: MediaStream) => {
@@ -69,7 +71,9 @@ const AudioVisualizer = () => {
     streamRef.current = stream;
     setIsActive(true);
 
-    stream.getAudioTracks()[0].onended = () => stop();
+    const audioTrack = stream.getAudioTracks()[0];
+    setTrackName(audioTrack?.label || "Unknown source");
+    audioTrack.onended = () => stop();
     animFrameRef.current = requestAnimationFrame(draw);
   }, [draw, stop]);
 
@@ -122,15 +126,15 @@ const AudioVisualizer = () => {
   }, [stop]);
 
   return (
-    <div className="border border-border p-6 bg-card h-[185px] flex flex-col">
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <Music className="h-4 w-4 text-primary" />
-          <span className="font-body text-xs uppercase tracking-widest text-muted-foreground">
+    <div className="border border-border p-4 bg-card h-[185px] flex flex-col overflow-hidden">
+      <div className="flex items-center justify-between mb-2 shrink-0">
+        <div className="flex items-center gap-2 min-w-0">
+          <Music className="h-4 w-4 text-primary shrink-0" />
+          <span className="font-body text-xs uppercase tracking-widest text-muted-foreground truncate">
             Audio Visualizer
           </span>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 shrink-0">
           {!isActive && (
             <div className="flex items-center border border-border rounded overflow-hidden mr-1">
               <button
@@ -164,8 +168,18 @@ const AudioVisualizer = () => {
           </Button>
         </div>
       </div>
-      <div className="flex-1 relative">
-        <canvas ref={canvasRef} className="w-full h-full" />
+
+      {isActive && trackName && (
+        <div className="flex items-center gap-1.5 mb-1.5 shrink-0 min-w-0">
+          <span className="h-1.5 w-1.5 rounded-full bg-destructive animate-pulse shrink-0" />
+          <p className="font-body text-[10px] text-muted-foreground truncate">
+            {trackName}
+          </p>
+        </div>
+      )}
+
+      <div className="flex-1 relative min-h-0">
+        <canvas ref={canvasRef} className="w-full h-full block" />
         {!isActive && (
           <div className="absolute inset-0 flex items-center justify-center">
             <p className="font-body text-xs text-muted-foreground">
