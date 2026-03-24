@@ -49,7 +49,7 @@ const NotesContent = () => {
   };
 
   return (
-    <div className="h-screen bg-background flex flex-col overflow-hidden">
+    <div className="h-screen bg-background flex flex-col overflow-hidden pt-8">
       {/* Header */}
       <header className="border-b border-border p-4 flex items-center gap-2 flex-shrink-0">
         <Button

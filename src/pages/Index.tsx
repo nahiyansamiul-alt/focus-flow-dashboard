@@ -26,7 +26,7 @@ const IndexContent = () => {
   });
 
   return (
-    <div className="min-h-screen bg-background p-4 sm:p-8 md:p-12 lg:p-16">
+    <div className="min-h-screen bg-background pt-8 p-4 sm:p-8 md:p-12 lg:p-16">
       {/* Header */}
       <header className="mb-8 md:mb-16">
         <div className="flex items-start justify-between gap-4">

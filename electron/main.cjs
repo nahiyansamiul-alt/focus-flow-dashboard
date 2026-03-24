@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu, desktopCapturer } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
@@ -137,17 +137,14 @@ function createWindow() {
     height: 900,
     minWidth: 1000,
     minHeight: 700,
+    frame: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
       enableRemoteModule: false,
     },
-    // App icon
-    // In development we load directly from the repo's public folder.
-    // In production, electron-builder copies buildResources (public) into process.resourcesPath,
-    // so we use the ICO placed there.
-    icon: isDev 
+    icon: isDev
       ? path.join(__dirname, '../public/FucosFlow.ico')
       : path.join(process.resourcesPath, 'FucosFlow.ico'),
   });
@@ -278,11 +275,11 @@ app.on('ready', async () => {
   // Start backend
   await startBackend();
 
+  // Remove default menu bar
+  Menu.setApplicationMenu(null);
+
   // Create window
   createWindow();
-
-  // Create menu
-  createMenu();
 });
 
 app.on('window-all-closed', () => {
@@ -309,9 +306,21 @@ ipcMain.handle('get-api-url', () => {
   return `http://localhost:${API_PORT}`;
 });
 
+ipcMain.handle('get-desktop-sources', async () => {
+  const sources = await desktopCapturer.getSources({ types: ['screen'] });
+  return sources.map((s) => ({ id: s.id, name: s.name }));
+});
+
 ipcMain.handle('get-version', () => {
   return app.getVersion();
 });
+
+ipcMain.handle('window-minimize', () => mainWindow?.minimize());
+ipcMain.handle('window-maximize', () => {
+  if (mainWindow?.isMaximized()) mainWindow.unmaximize();
+  else mainWindow?.maximize();
+});
+ipcMain.handle('window-close', () => mainWindow?.close());
 
 // Update IPC handlers
 ipcMain.handle('install-update', () => {

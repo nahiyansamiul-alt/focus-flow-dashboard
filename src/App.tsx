@@ -9,6 +9,7 @@ import Canvas from "./pages/Canvas";
 import NotFound from "./pages/NotFound";
 import { UpdateNotification } from "./components/UpdateNotification";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import TitleBar from "./components/TitleBar";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { SessionProvider } from "./contexts/SessionContext";
 import { NoteTimerProvider } from "./contexts/NoteTimerContext";
@@ -25,6 +26,7 @@ const App = () => (
         <SessionProvider>
           <NoteTimerProvider>
             <TooltipProvider>
+              <TitleBar />
               <Toaster />
               <Sonner />
               <UpdateNotification />

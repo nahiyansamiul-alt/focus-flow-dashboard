@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Music, Mic, Monitor, Play, Square } from "lucide-react";
+import { Music, Mic, Monitor, Play, Square, Palette } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const BAR_COUNT = 48;
@@ -9,6 +9,8 @@ const AudioVisualizer = () => {
   const [isActive, setIsActive] = useState(false);
   const [source, setSource] = useState<SourceType>("system");
   const [trackName, setTrackName] = useState<string>("");
+  const [colored, setColored] = useState(false);
+  const coloredRef = useRef(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animFrameRef = useRef<number>(0);
   const analyserRef = useRef<AnalyserNode | null>(null);
@@ -36,12 +38,31 @@ const AudioVisualizer = () => {
     const style = getComputedStyle(document.documentElement);
     const primary = style.getPropertyValue("--primary").trim();
 
+    let primaryHue = 0;
+    let hueDiff = 180;
+    if (coloredRef.current) {
+      primaryHue = parseFloat(primary) || 0;
+      const accentHue = parseFloat(style.getPropertyValue("--accent").trim()) || 180;
+      hueDiff = accentHue - primaryHue;
+      if (hueDiff > 180) hueDiff -= 360;
+      if (hueDiff < -180) hueDiff += 360;
+      // ensure a minimum spread so mono themes still look colorful
+      if (Math.abs(hueDiff) < 60) hueDiff = hueDiff >= 0 ? 120 : -120;
+    }
+
     for (let i = 0; i < BAR_COUNT; i++) {
       const val = data[i * step] / 255;
       const barH = val * h * 0.85;
       const x = i * barW;
       const opacity = 0.3 + val * 0.7;
-      ctx.fillStyle = `hsla(${primary}, ${opacity})`;
+
+      if (coloredRef.current) {
+        const t = i / (BAR_COUNT - 1);
+        const hue = ((primaryHue + hueDiff * t) + 360) % 360;
+        ctx.fillStyle = `hsla(${hue}, 75%, 55%, ${opacity})`;
+      } else {
+        ctx.fillStyle = `hsla(${primary}, ${opacity})`;
+      }
       ctx.fillRect(x + 1, h - barH, barW - 2, barH);
     }
 
@@ -79,11 +100,40 @@ const AudioVisualizer = () => {
 
   const startSystem = async () => {
     try {
-      const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: true,
-        audio: true,
-      });
-      stream.getVideoTracks().forEach((t) => t.stop());
+      let stream: MediaStream;
+
+      const electronApi = (window as any).electron;
+      if (electronApi?.isElectron) {
+        // Electron: use desktopCapturer + getUserMedia with chromeMediaSource
+        const sources: { id: string; name: string }[] =
+          await electronApi.getDesktopSources();
+        if (!sources || sources.length === 0) return;
+
+        const sourceId = sources[0].id;
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            mandatory: {
+              chromeMediaSource: "desktop",
+              chromeMediaSourceId: sourceId,
+            },
+          } as any,
+          video: {
+            mandatory: {
+              chromeMediaSource: "desktop",
+              chromeMediaSourceId: sourceId,
+            },
+          } as any,
+        });
+        stream.getVideoTracks().forEach((t) => t.stop());
+      } else {
+        // Browser fallback
+        stream = await navigator.mediaDevices.getDisplayMedia({
+          video: true,
+          audio: true,
+        });
+        stream.getVideoTracks().forEach((t) => t.stop());
+      }
+
       const audioTracks = stream.getAudioTracks();
       if (audioTracks.length === 0) {
         stream.getTracks().forEach((t) => t.stop());
@@ -91,7 +141,7 @@ const AudioVisualizer = () => {
       }
       connectStream(new MediaStream(audioTracks));
     } catch {
-      // User cancelled
+      // User cancelled or permission denied
     }
   };
 
@@ -102,6 +152,11 @@ const AudioVisualizer = () => {
     } catch {
       // Permission denied or no mic
     }
+  };
+
+  const toggleColored = () => {
+    coloredRef.current = !coloredRef.current;
+    setColored((v) => !v);
   };
 
   const start = () => {
@@ -135,6 +190,13 @@ const AudioVisualizer = () => {
           </span>
         </div>
         <div className="flex items-center gap-1 shrink-0">
+          <button
+            onClick={toggleColored}
+            className={`p-1 border border-border rounded transition-colors mr-1 ${colored ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+            title={colored ? "Color mode on" : "Color mode off"}
+          >
+            <Palette className="h-3 w-3" />
+          </button>
           {!isActive && (
             <div className="flex items-center border border-border rounded overflow-hidden mr-1">
               <button

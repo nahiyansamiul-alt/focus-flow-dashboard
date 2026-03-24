@@ -15,6 +15,14 @@ contextBridge.exposeInMainWorld('electron', {
     invoke: (channel, ...args) => ipcRenderer.invoke(channel, ...args),
   },
   
+  // Desktop audio capture (system audio)
+  getDesktopSources: () => ipcRenderer.invoke('get-desktop-sources'),
+
+  // Window controls
+  windowMinimize: () => ipcRenderer.invoke('window-minimize'),
+  windowMaximize: () => ipcRenderer.invoke('window-maximize'),
+  windowClose: () => ipcRenderer.invoke('window-close'),
+
   // Platform info
   platform: process.platform,
   isElectron: true,
