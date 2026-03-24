@@ -1,11 +1,13 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Music, Play, Square } from "lucide-react";
+import { Music, Mic, Monitor, Play, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const BAR_COUNT = 48;
+type SourceType = "system" | "mic";
 
 const AudioVisualizer = () => {
   const [isActive, setIsActive] = useState(false);
+  const [source, setSource] = useState<SourceType>("system");
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animFrameRef = useRef<number>(0);
   const analyserRef = useRef<AnalyserNode | null>(null);
@@ -45,40 +47,52 @@ const AudioVisualizer = () => {
     animFrameRef.current = requestAnimationFrame(draw);
   }, []);
 
-  const start = async () => {
+  const connectStream = useCallback((stream: MediaStream) => {
+    const audioCtx = new AudioContext();
+    const src = audioCtx.createMediaStreamSource(stream);
+    const analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 256;
+    src.connect(analyser);
+
+    audioCtxRef.current = audioCtx;
+    analyserRef.current = analyser;
+    streamRef.current = stream;
+    setIsActive(true);
+
+    stream.getAudioTracks()[0].onended = () => stop();
+    animFrameRef.current = requestAnimationFrame(draw);
+  }, [draw]);
+
+  const startSystem = async () => {
     try {
       const stream = await navigator.mediaDevices.getDisplayMedia({
         video: true,
         audio: true,
       });
-
-      // Stop video tracks, we only need audio
       stream.getVideoTracks().forEach((t) => t.stop());
-
       const audioTracks = stream.getAudioTracks();
       if (audioTracks.length === 0) {
         stream.getTracks().forEach((t) => t.stop());
         return;
       }
-
-      const audioCtx = new AudioContext();
-      const source = audioCtx.createMediaStreamSource(new MediaStream(audioTracks));
-      const analyser = audioCtx.createAnalyser();
-      analyser.fftSize = 256;
-      source.connect(analyser);
-
-      audioCtxRef.current = audioCtx;
-      analyserRef.current = analyser;
-      streamRef.current = stream;
-      setIsActive(true);
-
-      // Handle stream ending externally (user stops sharing)
-      audioTracks[0].onended = () => stop();
-
-      animFrameRef.current = requestAnimationFrame(draw);
+      connectStream(new MediaStream(audioTracks));
     } catch {
       // User cancelled
     }
+  };
+
+  const startMic = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      connectStream(stream);
+    } catch {
+      // Permission denied or no mic
+    }
+  };
+
+  const start = () => {
+    if (source === "mic") startMic();
+    else startSystem();
   };
 
   const stop = useCallback(() => {
@@ -116,26 +130,46 @@ const AudioVisualizer = () => {
             Audio Visualizer
           </span>
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-6 w-6"
-          onClick={isActive ? stop : start}
-          title={isActive ? "Stop" : "Start capturing audio"}
-        >
-          {isActive ? (
-            <Square className="h-3 w-3 text-destructive" />
-          ) : (
-            <Play className="h-3 w-3 text-muted-foreground" />
+        <div className="flex items-center gap-1">
+          {!isActive && (
+            <div className="flex items-center border border-border rounded overflow-hidden mr-1">
+              <button
+                onClick={() => setSource("system")}
+                className={`p-1 transition-colors ${source === "system" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                title="System audio"
+              >
+                <Monitor className="h-3 w-3" />
+              </button>
+              <button
+                onClick={() => setSource("mic")}
+                className={`p-1 transition-colors ${source === "mic" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                title="Microphone"
+              >
+                <Mic className="h-3 w-3" />
+              </button>
+            </div>
           )}
-        </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6"
+            onClick={isActive ? stop : start}
+            title={isActive ? "Stop" : "Start"}
+          >
+            {isActive ? (
+              <Square className="h-3 w-3 text-destructive" />
+            ) : (
+              <Play className="h-3 w-3 text-muted-foreground" />
+            )}
+          </Button>
+        </div>
       </div>
       <div className="flex-1 relative">
         <canvas ref={canvasRef} className="w-full h-full" />
         {!isActive && (
           <div className="absolute inset-0 flex items-center justify-center">
             <p className="font-body text-xs text-muted-foreground">
-              Click play to capture system audio
+              {source === "mic" ? "Click play to use microphone" : "Click play to capture system audio"}
             </p>
           </div>
         )}
