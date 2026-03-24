@@ -6,7 +6,7 @@ import TodoList from "@/components/TodoList";
 import RemindersList from "@/components/RemindersList";
 import ContributionGrid from "@/components/ContributionGrid";
 import Stats from "@/components/Stats";
-import MotivationalBox from "@/components/MotivationalBox";
+import AudioVisualizer from "@/components/AudioVisualizer";
 import ProductivityTips from "@/components/ProductivityTips";
 import KeyboardShortcutsModal, { KeyboardShortcutsButton } from "@/components/KeyboardShortcutsModal";
 import { ReminderForm } from "@/components/ReminderForm";
@@ -54,7 +54,7 @@ const IndexContent = () => {
         <div className="lg:col-span-5 space-y-4 sm:space-y-6 lg:space-y-8">
           <Timer />
           <Clock />
-          <MotivationalBox />
+          <AudioVisualizer />
         </div>
 
         {/* Right Column - Todo, Reminders, Stats & Tips */}
