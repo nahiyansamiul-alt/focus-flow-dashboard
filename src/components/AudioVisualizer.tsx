@@ -5,6 +5,17 @@ import { Button } from "@/components/ui/button";
 const BAR_COUNT = 48;
 type SourceType = "system" | "mic";
 
+// Parse "H S% L%" CSS variable into [h, s, l] numbers
+function parseCssHsl(val: string): [number, number, number] {
+  const parts = val.trim().split(/\s+/);
+  return [
+    parseFloat(parts[0]) || 0,
+    parseFloat(parts[1]) || 0,
+    parseFloat(parts[2]) || 0,
+  ];
+}
+
+
 const AudioVisualizer = () => {
   const [isActive, setIsActive] = useState(false);
   const [source, setSource] = useState<SourceType>("system");
@@ -16,6 +27,7 @@ const AudioVisualizer = () => {
   const analyserRef = useRef<AnalyserNode | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
+  const smoothedRef = useRef<Float32Array>(new Float32Array(BAR_COUNT));
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -33,35 +45,41 @@ const AudioVisualizer = () => {
     ctx.clearRect(0, 0, w, h);
 
     const barW = w / BAR_COUNT;
-    const step = Math.floor(data.length / BAR_COUNT);
 
     const style = getComputedStyle(document.documentElement);
-    const primary = style.getPropertyValue("--primary").trim();
+    const [pH, pS, pL] = parseCssHsl(style.getPropertyValue("--primary"));
 
-    let primaryHue = 0;
-    let hueDiff = 180;
-    if (coloredRef.current) {
-      primaryHue = parseFloat(primary) || 0;
-      const accentHue = parseFloat(style.getPropertyValue("--accent").trim()) || 180;
-      hueDiff = accentHue - primaryHue;
-      if (hueDiff > 180) hueDiff -= 360;
-      if (hueDiff < -180) hueDiff += 360;
-      // ensure a minimum spread so mono themes still look colorful
-      if (Math.abs(hueDiff) < 60) hueDiff = hueDiff >= 0 ? 120 : -120;
-    }
+    const colorStops: [number, number, number][] = coloredRef.current
+      ? [
+          parseCssHsl(style.getPropertyValue("--contribution-low")),
+          parseCssHsl(style.getPropertyValue("--contribution-medium")),
+          parseCssHsl(style.getPropertyValue("--contribution-high")),
+          parseCssHsl(style.getPropertyValue("--contribution-max")),
+        ]
+      : [];
+
+    const smoothed = smoothedRef.current;
+
+    const step = Math.floor(data.length / BAR_COUNT);
 
     for (let i = 0; i < BAR_COUNT; i++) {
-      const val = data[i * step] / 255;
-      const barH = val * h * 0.85;
+      const raw = data[i * step] / 255;
+
+      // Fast attack, slow decay
+      smoothed[i] = raw > smoothed[i]
+        ? smoothed[i] + (raw - smoothed[i]) * 0.75
+        : smoothed[i] + (raw - smoothed[i]) * 0.12;
+
+      // Power curve — makes quiet parts more visible, loud parts more dramatic
+      const val = Math.pow(smoothed[i], 0.65);
+      const barH = val * h * 0.92;
       const x = i * barW;
-      const opacity = 0.3 + val * 0.7;
 
       if (coloredRef.current) {
-        const t = i / (BAR_COUNT - 1);
-        const hue = ((primaryHue + hueDiff * t) + 360) % 360;
-        ctx.fillStyle = `hsla(${hue}, 75%, 55%, ${opacity})`;
+        const [ch, cs, cl] = colorStops[i % colorStops.length];
+        ctx.fillStyle = `hsl(${ch}, ${cs}%, ${cl}%)`;
       } else {
-        ctx.fillStyle = `hsla(${primary}, ${opacity})`;
+        ctx.fillStyle = `hsl(${pH}, ${pS}%, ${pL}%)`;
       }
       ctx.fillRect(x + 1, h - barH, barW - 2, barH);
     }
@@ -76,6 +94,7 @@ const AudioVisualizer = () => {
     analyserRef.current = null;
     streamRef.current = null;
     audioCtxRef.current = null;
+    smoothedRef.current.fill(0);
     setIsActive(false);
     setTrackName("");
   }, []);
