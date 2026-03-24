@@ -47,6 +47,16 @@ const AudioVisualizer = () => {
     animFrameRef.current = requestAnimationFrame(draw);
   }, []);
 
+  const stop = useCallback(() => {
+    cancelAnimationFrame(animFrameRef.current);
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    audioCtxRef.current?.close();
+    analyserRef.current = null;
+    streamRef.current = null;
+    audioCtxRef.current = null;
+    setIsActive(false);
+  }, []);
+
   const connectStream = useCallback((stream: MediaStream) => {
     const audioCtx = new AudioContext();
     const src = audioCtx.createMediaStreamSource(stream);
@@ -61,7 +71,7 @@ const AudioVisualizer = () => {
 
     stream.getAudioTracks()[0].onended = () => stop();
     animFrameRef.current = requestAnimationFrame(draw);
-  }, [draw]);
+  }, [draw, stop]);
 
   const startSystem = async () => {
     try {
@@ -94,16 +104,6 @@ const AudioVisualizer = () => {
     if (source === "mic") startMic();
     else startSystem();
   };
-
-  const stop = useCallback(() => {
-    cancelAnimationFrame(animFrameRef.current);
-    streamRef.current?.getTracks().forEach((t) => t.stop());
-    audioCtxRef.current?.close();
-    analyserRef.current = null;
-    streamRef.current = null;
-    audioCtxRef.current = null;
-    setIsActive(false);
-  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
