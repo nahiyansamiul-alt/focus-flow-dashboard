@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { getApiBaseUrl } from "@/lib/api";
+import { formatLocalDateKey, historyAPI } from "@/lib/api";
 
 export interface Session {
   start: string;
@@ -42,40 +42,30 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
   const fetchSessions = async () => {
     try {
       setIsLoading(true);
-      const apiBase = getApiBaseUrl();
-      console.log('[SessionContext] Starting fetch from:', `${apiBase}/history`);
-      const response = await fetch(`${apiBase}/history`);
-      console.log('[SessionContext] Response status:', response.status, response.ok);
-      if (!response.ok) throw new Error("Failed to fetch history");
-      
-      const historyData = await response.json();
-      console.log('[SessionContext] Fetched history count:', historyData.length);
-      console.log('[SessionContext] Fetched history data:', historyData);
+      const result = await historyAPI.getActivity();
+      if (!result.success) throw new Error(result.error || "Failed to fetch activity");
+      const historyData = result.data || [];
       
       // Convert backend history to DayData format
       const grouped = historyData.reduce((acc: { [key: string]: Session[] }, item: any) => {
-        console.log('[SessionContext] Processing item:', item.date, item.action, item.duration);
-        if (item.date && item.action === 'focus_session') {
+        if (item.date) {
           if (!acc[item.date]) {
             acc[item.date] = [];
           }
           acc[item.date].push({
-            start: item.startTime || '00:00',
-            end: item.endTime || '00:00',
+            start: item.start || item.startTime || '00:00',
+            end: item.end || item.endTime || '00:00',
             duration: item.duration || 0,
           });
         }
         return acc;
       }, {});
-      
-      console.log('[SessionContext] Grouped sessions:', grouped);
-      
+
       const sessionsData = Object.entries(grouped).map(([date, sessions]) => ({
         date,
         sessions: sessions as Session[]
       }));
-      
-      console.log('[SessionContext] Final sessions data:', sessionsData);
+
       setSessions(sessionsData);
     } catch (error) {
       console.error("[SessionContext] Error fetching sessions from backend:", error);
@@ -90,8 +80,7 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const addSession = (durationSeconds: number, startTime: string, endTime: string) => {
-    const now = new Date();
-    const dateKey = now.toISOString().split("T")[0];
+    const dateKey = formatLocalDateKey();
     
     const durationMinutes = Math.round(durationSeconds / 60);
 
@@ -115,7 +104,7 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const getSessionsForDate = (date: Date): Session[] => {
-    const dateKey = date.toISOString().split("T")[0];
+    const dateKey = formatLocalDateKey(date);
     const day = sessions.find((d) => d.date === dateKey);
     return day?.sessions || [];
   };

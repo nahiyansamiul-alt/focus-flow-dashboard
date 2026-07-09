@@ -49,45 +49,38 @@ export const createNote = async (req: Request, res: Response) => {
 export const updateNote = async (req: Request, res: Response) => {
   try {
     const noteId = req.params.id;
-    console.log(`[noteController.updateNote] Received update request for note ${noteId}:`, req.body);
-    
+
     // Get current note first
     const currentNote = await getAsync('SELECT * FROM notes WHERE id = ?', [noteId]);
     if (!currentNote) {
-      console.warn(`[noteController.updateNote] Note not found: ${noteId}`);
       return res.status(404).json({ error: 'Note not found' });
     }
-    
-    console.log(`[noteController.updateNote] Current note state:`, currentNote);
-    
+
     // Only update fields that were provided
     const { title, content, folderId } = req.body;
     const finalTitle = title !== undefined ? title : currentNote.title;
     const finalContent = content !== undefined ? content : currentNote.content;
     const finalFolderId = folderId !== undefined ? folderId : currentNote.folderId;
-    
-    console.log(`[noteController.updateNote] Final values to update:`, {
-      title: finalTitle,
-      content: finalContent ? `[${finalContent.length} chars]` : finalContent,
-      folderId: finalFolderId
-    });
-    
+
     await runAsync(
       `UPDATE notes SET title = ?, content = ?, folderId = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?`,
       [finalTitle, finalContent, finalFolderId, noteId]
     );
     
     const note = await getAsync('SELECT * FROM notes WHERE id = ?', [noteId]);
-    console.log(`[noteController.updateNote] Note updated successfully:`, {
-      id: note.id,
-      title: note.title,
-      contentLength: note.content ? note.content.length : 0,
-      updatedAt: note.updatedAt
-    });
     res.json({ ...note, _id: note.id });
   } catch (error) {
     console.error('[noteController.updateNote] Error updating note:', error);
     res.status(400).json({ error: 'Failed to update note' });
+  }
+};
+
+export const markNoteViewed = async (req: Request, res: Response) => {
+  try {
+    await runAsync('UPDATE notes SET lastViewedAt = CURRENT_TIMESTAMP WHERE id = ?', [req.params.id]);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(400).json({ error: 'Failed to mark note viewed' });
   }
 };
 

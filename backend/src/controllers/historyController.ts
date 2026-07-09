@@ -4,13 +4,32 @@ import { allAsync, runAsync, getAsync } from '../database';
 export const getHistory = async (_req: Request, res: Response) => {
   try {
     const history = await allAsync(
-      'SELECT * FROM history ORDER BY timestamp DESC'
+      'SELECT * FROM history ORDER BY timestamp DESC LIMIT 500'
     );
     // Add _id field for frontend compatibility
     const mapped = history.map(h => ({ ...h, _id: h.id }));
     res.json(mapped);
   } catch (error) {
     res.status(400).json({ error: 'Failed to fetch history' });
+  }
+};
+
+export const getActivityHistory = async (_req: Request, res: Response) => {
+  try {
+    const rows = await allAsync(
+      `SELECT date, startTime, endTime, duration
+       FROM history
+       WHERE action = 'focus_session' AND date IS NOT NULL
+       ORDER BY date DESC, timestamp DESC`
+    );
+    res.json(rows.map(row => ({
+      date: row.date,
+      start: row.startTime || '00:00',
+      end: row.endTime || '00:00',
+      duration: row.duration || 0,
+    })));
+  } catch (error) {
+    res.status(400).json({ error: 'Failed to fetch activity history' });
   }
 };
 
@@ -34,7 +53,7 @@ export const createHistory = async (req: Request, res: Response) => {
     const { action, details, duration, startTime, endTime } = req.body;
     
     // Set date to today if not provided
-    const date = new Date().toISOString().split('T')[0];
+    const date = req.body.date || new Date().toISOString().split('T')[0];
     
     const result = await runAsync(
       `INSERT INTO history (action, details, duration, startTime, endTime, date, timestamp) 

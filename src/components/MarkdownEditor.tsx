@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
@@ -44,7 +44,27 @@ import {
   Undo2,
   Redo2,
   Trash2,
+  Link2,
+  PlusCircle,
+  FolderOpen,
+  Search,
+  AlertCircle,
+  History,
+  Focus,
+  Wand2,
+  Table,
+  CheckSquare,
+  GitBranch,
+  Database,
+  Pin,
+  PinOff,
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { useDebounceWithStatus } from "@/hooks/use-debounce";
 import { PaperBackground, PatternPreview, paperPatterns, type PaperPattern, getPatternStyle } from "@/components/ui/paper-background";
@@ -55,13 +75,58 @@ import { SaveIndicator } from "@/components/editor/SaveIndicator";
 import { AnnotationOverlay } from "@/components/editor/AnnotationOverlay";
 import { useAnnotations, AnnotationTool } from "@/components/editor/useAnnotations";
 import { toast } from "sonner";
+import {
+  getFolderId,
+  getBacklinks,
+  getNoteFolderId,
+  getNoteId,
+  getUnlinkedMentions,
+  normalizeNoteTitle,
+  renderableMarkdownWithWikiLinks,
+  resolveWikiLinks,
+  resolveWikiTarget,
+  type LinkableFolder,
+  type LinkableNote,
+  type ResolvedWikiLink,
+} from "@/lib/note-links";
 
 interface MarkdownEditorProps {
   content: string;
   title: string;
   noteId: string;
-  onContentChange: (content: string) => void;
+  allNotes?: LinkableNote[];
+  folders?: LinkableFolder[];
+  onOpenNote?: (noteId: string, folderId?: string) => void;
+  onOpenFolder?: (folderId: string) => void;
+  onCreateLinkedNote?: (title: string, folderId?: string) => Promise<string | null>;
+  onTogglePinned?: (pinned: boolean) => Promise<void>;
+  getIndexedReferences?: (noteId: string) => Promise<ApiIndexedReferences | null>;
+  getNoteVersions?: (noteId: string) => Promise<NoteVersion[]>;
+  onRestoreVersion?: (noteId: string, versionId: string) => Promise<void>;
+  onContentChange: (content: string) => void | boolean | Promise<void | boolean>;
   onTitleChange: (title: string) => void;
+}
+
+interface NoteVersion {
+  id: string | number;
+  title: string;
+  content: string;
+  revision?: number;
+  savedAt?: string;
+}
+
+interface IndexedReferences {
+  backlinks: LinkableNote[];
+  outgoingLinks: ResolvedWikiLink[];
+  missingLinks: ResolvedWikiLink[];
+  unlinkedMentions: Array<{ note: LinkableNote; count: number; excerpt: string }>;
+}
+
+interface ApiIndexedReferences {
+  backlinks: LinkableNote[];
+  outgoingLinks: Array<{ target: string; type: "note"; note: LinkableNote }>;
+  missingLinks: Array<{ target: string; type: "missing" }>;
+  unlinkedMentions: Array<{ note: LinkableNote; count: number; excerpt: string }>;
 }
 
 const ANNOTATION_TOOLS: { id: AnnotationTool; icon: typeof Pen; label: string; shortcut: string }[] = [
@@ -80,8 +145,45 @@ const ANNOTATION_COLORS = [
   '#22c55e', '#3b82f6', '#8b5cf6', '#ec4899', '#6b7280',
 ];
 
-const MarkdownEditor = ({ content, title, noteId, onContentChange, onTitleChange }: MarkdownEditorProps) => {
+const indexedNoteLink = (target: string, note: LinkableNote): ResolvedWikiLink => ({
+  raw: target,
+  target,
+  normalizedTarget: normalizeNoteTitle(target),
+  type: "note",
+  note,
+  createTitle: target,
+});
+
+const indexedMissingLink = (target: string): ResolvedWikiLink => ({
+  raw: target,
+  target,
+  normalizedTarget: normalizeNoteTitle(target),
+  type: "missing",
+  createTitle: target,
+});
+
+const MarkdownEditor = ({
+  content,
+  title,
+  noteId,
+  allNotes = [],
+  folders = [],
+  onOpenNote,
+  onOpenFolder,
+  onCreateLinkedNote,
+  onTogglePinned,
+  getIndexedReferences,
+  getNoteVersions,
+  onRestoreVersion,
+  onContentChange,
+  onTitleChange
+}: MarkdownEditorProps) => {
   const [isPreview, setIsPreview] = useState(true);
+  const [focusMode, setFocusMode] = useState(false);
+  const [versionsOpen, setVersionsOpen] = useState(false);
+  const [versions, setVersions] = useState<NoteVersion[]>([]);
+  const [versionsLoading, setVersionsLoading] = useState(false);
+  const [indexedReferences, setIndexedReferences] = useState<IndexedReferences | null>(null);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editableTitle, setEditableTitle] = useState(title);
   const [annotationMode, setAnnotationMode] = useState(false);
@@ -97,16 +199,36 @@ const MarkdownEditor = ({ content, title, noteId, onContentChange, onTitleChange
   const currentNoteIdRef = useRef(noteId);
   const trashHoldTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [trashHolding, setTrashHolding] = useState(false);
+  const currentNote = useMemo<LinkableNote>(() => ({
+    ...(allNotes.find((note) => getNoteId(note) === noteId) || { id: noteId, _id: noteId, title }),
+    title,
+    content: localContent,
+  }), [allNotes, noteId, title, localContent]);
+  const fallbackBacklinks = useMemo(() => getBacklinks(allNotes, currentNote, folders), [allNotes, currentNote, folders]);
+  const fallbackOutgoingLinks = useMemo(() => resolveWikiLinks(allNotes, folders, localContent), [allNotes, folders, localContent]);
+  const fallbackBrokenLinks = useMemo(() => fallbackOutgoingLinks.filter((link) => link.type === "missing"), [fallbackOutgoingLinks]);
+  const fallbackUnlinkedMentions = useMemo(
+    () => getUnlinkedMentions(allNotes, currentNote, folders),
+    [allNotes, currentNote, folders]
+  );
+  const backlinks = indexedReferences?.backlinks || fallbackBacklinks;
+  const outgoingLinks = indexedReferences?.outgoingLinks || fallbackOutgoingLinks;
+  const brokenLinks = indexedReferences?.missingLinks || fallbackBrokenLinks;
+  const unlinkedMentions = indexedReferences?.unlinkedMentions || fallbackUnlinkedMentions;
+  const referenceCount = backlinks.length + unlinkedMentions.length + brokenLinks.length;
+  const renderedContent = useMemo(() => renderableMarkdownWithWikiLinks(localContent), [localContent]);
 
   // Annotation state
   const ann = useAnnotations(noteId);
 
   // Memoize the save callback to prevent unnecessary debounce re-triggers
-  const handleSave = useCallback((debouncedContent: string) => {
+  const handleSave = useCallback(async (debouncedContent: string) => {
     if (debouncedContent !== lastSentToBackendRef.current) {
+      const result = await onContentChange(debouncedContent);
+      if (result === false) return false;
       lastSentToBackendRef.current = debouncedContent;
-      onContentChange(debouncedContent);
     }
+    return true;
   }, [onContentChange]);
 
   // Debounce content changes with status tracking
@@ -114,7 +236,8 @@ const MarkdownEditor = ({ content, title, noteId, onContentChange, onTitleChange
     localContent, 
     500, 
     handleSave,
-    content || ""
+    content || "",
+    `focusflow:note-draft:${noteId}`
   );
 
   useEffect(() => {
@@ -133,6 +256,25 @@ const MarkdownEditor = ({ content, title, noteId, onContentChange, onTitleChange
   useEffect(() => {
     localStorage.setItem("editor-paper-pattern", paperPattern);
   }, [paperPattern]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setIndexedReferences(null);
+    if (!getIndexedReferences || !noteId) return;
+    getIndexedReferences(noteId).then((references) => {
+      if (!cancelled && references) {
+        setIndexedReferences({
+          backlinks: references.backlinks,
+          outgoingLinks: references.outgoingLinks.map((link) => indexedNoteLink(link.target, link.note)),
+          missingLinks: references.missingLinks.map((link) => indexedMissingLink(link.target)),
+          unlinkedMentions: references.unlinkedMentions,
+        });
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [getIndexedReferences, noteId, localContent]);
 
   // Annotation keyboard shortcuts (only when annotation mode is active)
   useEffect(() => {
@@ -224,6 +366,44 @@ const MarkdownEditor = ({ content, title, noteId, onContentChange, onTitleChange
     URL.revokeObjectURL(url);
   }, [title, localContent]);
 
+  const insertLineTemplate = useCallback((template: string) => {
+    const textarea = textareaRef.current;
+    const prefix = localContent && !localContent.endsWith("\n") ? "\n" : "";
+    if (!textarea) {
+      setLocalContent((prev) => `${prev}${prefix}${template}`);
+      return;
+    }
+    const start = textarea.selectionStart;
+    const next = `${localContent.slice(0, start)}${prefix}${template}${localContent.slice(start)}`;
+    setLocalContent(next);
+    setTimeout(() => {
+      textarea.focus();
+      textarea.setSelectionRange(start + prefix.length + template.length, start + prefix.length + template.length);
+    }, 0);
+  }, [localContent]);
+
+  const slashActions = [
+    { icon: Heading1, label: "Heading", template: "# Heading\n" },
+    { icon: CheckSquare, label: "Tasks", template: "- [ ] Task\n- [ ] Task\n" },
+    { icon: Table, label: "Table", template: "| Column | Value |\n| --- | --- |\n| Item | Detail |\n" },
+    { icon: GitBranch, label: "Mermaid", template: "```mermaid\ngraph TD\n  A[Start] --> B[Next]\n```\n" },
+    { icon: Database, label: "DBML", template: "```dbml\nTable users {\n  id integer [primary key]\n  name varchar\n}\n```\n" },
+    { icon: Quote, label: "Callout", template: "> [!note]\n> Write the note here.\n" },
+  ];
+
+  const openVersions = useCallback(async () => {
+    if (!getNoteVersions) return;
+    setVersionsOpen(true);
+    setVersionsLoading(true);
+    try {
+      setVersions(await getNoteVersions(noteId));
+    } catch (error) {
+      toast.error("Could not load note history");
+    } finally {
+      setVersionsLoading(false);
+    }
+  }, [getNoteVersions, noteId]);
+
   const handleTitleSubmit = useCallback(() => {
     const trimmedTitle = editableTitle.trim();
     if (trimmedTitle && trimmedTitle !== title) {
@@ -237,6 +417,33 @@ const MarkdownEditor = ({ content, title, noteId, onContentChange, onTitleChange
     setIsEditingTitle(false);
   }, [editableTitle, title, onTitleChange]);
 
+  const openWikiTarget = useCallback(async (target: string) => {
+    const resolved = resolveWikiTarget(allNotes, folders, target);
+    if (resolved.type === "note" && resolved.note) {
+      const id = getNoteId(resolved.note);
+      if (id) onOpenNote?.(id, getNoteFolderId(resolved.note));
+      return;
+    }
+
+    if (resolved.type === "folder" && resolved.folder) {
+      const id = getFolderId(resolved.folder);
+      if (id) onOpenFolder?.(id);
+      return;
+    }
+
+    if (!onCreateLinkedNote) {
+      toast.info(`No note named "${target}"`);
+      return;
+    }
+
+    const createdId = await onCreateLinkedNote(resolved.createTitle, resolved.createFolderId);
+    if (createdId) {
+      toast.success(`Created "${resolved.createTitle}"`);
+    } else {
+      toast.error("Select a folder before creating linked notes");
+    }
+  }, [allNotes, folders, onCreateLinkedNote, onOpenFolder, onOpenNote]);
+
   const toggleAnnotationMode = useCallback(() => {
     if (!isPreview) {
       // Switch to preview first when enabling annotation mode
@@ -246,7 +453,7 @@ const MarkdownEditor = ({ content, title, noteId, onContentChange, onTitleChange
   }, [isPreview]);
 
   return (
-    <div className="flex flex-col h-full">
+    <div className={cn("flex flex-col h-full", focusMode && "fixed inset-0 z-50 bg-background p-6 pt-10")}>
       {/* Timer and Title Row */}
       <div className="mb-4 flex items-center gap-4">
         <NoteTimer noteTitle={title} />
@@ -274,7 +481,155 @@ const MarkdownEditor = ({ content, title, noteId, onContentChange, onTitleChange
         )}
         
         <div className="ml-auto">
-          <SaveIndicator status={saveStatus} />
+          <div className="flex items-center gap-2">
+            {onTogglePinned && (
+              <Button
+                variant={currentNote.pinned ? "default" : "ghost"}
+                size="icon"
+                className="h-8 w-8"
+                title={currentNote.pinned ? "Unpin note" : "Pin note"}
+                onClick={() => onTogglePinned(!currentNote.pinned)}
+              >
+                {currentNote.pinned ? <PinOff className="h-4 w-4" /> : <Pin className="h-4 w-4" />}
+              </Button>
+            )}
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="ghost" size="sm" className="gap-2" title="Links">
+                  <Link2 className="w-4 h-4" />
+                  {referenceCount}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-96 p-3" align="end">
+                <div className="space-y-4">
+                  <div>
+                    <div className="mb-2 flex items-center justify-between">
+                      <p className="text-xs font-medium text-muted-foreground">Backlinks</p>
+                      <span className="text-xs text-muted-foreground">{backlinks.length}</span>
+                    </div>
+                    <div className="space-y-1">
+                      {backlinks.length ? backlinks.map((note) => {
+                        const id = getNoteId(note);
+                        return (
+                          <Button
+                            key={id}
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-full justify-start truncate"
+                            onClick={() => id && onOpenNote?.(id, getNoteFolderId(note))}
+                          >
+                            {note.title}
+                          </Button>
+                        );
+                      }) : (
+                        <p className="px-2 py-1 text-xs text-muted-foreground">No backlinks yet</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="mb-2 flex items-center justify-between">
+                      <p className="text-xs font-medium text-muted-foreground">Unlinked Mentions</p>
+                      <span className="text-xs text-muted-foreground">{unlinkedMentions.length}</span>
+                    </div>
+                    <div className="max-h-44 space-y-1 overflow-y-auto pr-1">
+                      {unlinkedMentions.length ? unlinkedMentions.map((mention) => {
+                        const id = getNoteId(mention.note);
+                        return (
+                          <Button
+                            key={id}
+                            variant="ghost"
+                            size="sm"
+                            className="h-auto w-full justify-start gap-2 whitespace-normal px-2 py-2 text-left"
+                            onClick={() => id && onOpenNote?.(id, getNoteFolderId(mention.note))}
+                          >
+                            <Search className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate">{mention.note.title}</span>
+                              <span className="line-clamp-2 text-xs text-muted-foreground">{mention.excerpt}</span>
+                            </span>
+                            <span className="text-xs text-muted-foreground">{mention.count}</span>
+                          </Button>
+                        );
+                      }) : (
+                        <p className="px-2 py-1 text-xs text-muted-foreground">No unlinked mentions</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="mb-2 flex items-center justify-between">
+                      <p className="text-xs font-medium text-muted-foreground">Outgoing Links</p>
+                      <span className="text-xs text-muted-foreground">{outgoingLinks.length}</span>
+                    </div>
+                    <div className="space-y-1">
+                      {outgoingLinks.length ? outgoingLinks.map((link) => {
+                        const id = link.note ? getNoteId(link.note) : "";
+                        const folderId = link.folder ? getFolderId(link.folder) : "";
+                        return (
+                          <Button
+                            key={`${link.normalizedTarget}-${link.alias || ""}`}
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-full justify-start gap-2 truncate"
+                            onClick={() => {
+                              if (link.note && id) {
+                                onOpenNote?.(id, getNoteFolderId(link.note));
+                                return;
+                              }
+                              if (link.folder && folderId) {
+                                onOpenFolder?.(folderId);
+                                return;
+                              }
+                              openWikiTarget(link.target);
+                            }}
+                          >
+                            {link.type === "folder" && <FolderOpen className="h-3.5 w-3.5 text-muted-foreground" />}
+                            {link.type === "missing" && <PlusCircle className="h-3.5 w-3.5 text-muted-foreground" />}
+                            <span className="truncate">{link.alias || link.target}</span>
+                          </Button>
+                        );
+                      }) : (
+                        <p className="px-2 py-1 text-xs text-muted-foreground">No outgoing links</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {brokenLinks.length > 0 && (
+                    <div>
+                      <div className="mb-2 flex items-center justify-between">
+                        <p className="text-xs font-medium text-muted-foreground">Missing Links</p>
+                        <span className="text-xs text-muted-foreground">{brokenLinks.length}</span>
+                      </div>
+                      <div className="space-y-1">
+                        {brokenLinks.map((link) => (
+                          <Button
+                            key={`missing-${link.normalizedTarget}-${link.alias || ""}`}
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-full justify-start gap-2 truncate text-muted-foreground"
+                            onClick={() => openWikiTarget(link.target)}
+                          >
+                            <AlertCircle className="h-3.5 w-3.5" />
+                            <span className="truncate">{link.alias || link.target}</span>
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </PopoverContent>
+            </Popover>
+            {getNoteVersions && (
+              <Button variant="ghost" size="icon" className="h-8 w-8" title="Version history" onClick={openVersions}>
+                <History className="h-4 w-4" />
+              </Button>
+            )}
+            <Button variant={focusMode ? "default" : "ghost"} size="icon" className="h-8 w-8" title="Focus mode" onClick={() => setFocusMode(prev => !prev)}>
+              <Focus className="h-4 w-4" />
+            </Button>
+            <SaveIndicator state={saveStatus} />
+          </div>
         </div>
       </div>
 
@@ -301,6 +656,38 @@ const MarkdownEditor = ({ content, title, noteId, onContentChange, onTitleChange
         <div className="w-px h-6 bg-border mx-1" />
         
         <LatexTemplates onInsert={handleLatexInsert} disabled={isPreview} />
+
+        <div className="w-px h-6 bg-border mx-1" />
+
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              title="Insert block"
+              disabled={isPreview}
+            >
+              <Wand2 className="w-4 h-4" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-56 p-2" align="start">
+            <div className="grid gap-1">
+              {slashActions.map(({ icon: Icon, label, template }) => (
+                <Button
+                  key={label}
+                  variant="ghost"
+                  size="sm"
+                  className="justify-start gap-2"
+                  onClick={() => insertLineTemplate(template)}
+                >
+                  <Icon className="h-4 w-4" />
+                  {label}
+                </Button>
+              ))}
+            </div>
+          </PopoverContent>
+        </Popover>
 
         <div className="w-px h-6 bg-border mx-1" />
 
@@ -514,7 +901,22 @@ const MarkdownEditor = ({ content, title, noteId, onContentChange, onTitleChange
                       />
                     ),
                     a: ({ href, children }) => (
-                      <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                      <a
+                        href={href}
+                        target={href?.startsWith("wikilink:") ? undefined : "_blank"}
+                        rel={href?.startsWith("wikilink:") ? undefined : "noopener noreferrer"}
+                        className={cn(
+                          "text-primary hover:underline",
+                          href?.startsWith("wikilink:") &&
+                            resolveWikiTarget(allNotes, folders, decodeURIComponent(href.replace(/^wikilink:/, ""))).type === "missing" &&
+                            "decoration-dashed text-muted-foreground"
+                        )}
+                        onClick={(event) => {
+                          if (!href?.startsWith("wikilink:")) return;
+                          event.preventDefault();
+                          openWikiTarget(decodeURIComponent(href.replace(/^wikilink:/, "")));
+                        }}
+                      >
                         {children}
                       </a>
                     ),
@@ -523,7 +925,7 @@ const MarkdownEditor = ({ content, title, noteId, onContentChange, onTitleChange
                     ),
                   }}
                 >
-                  {localContent || "*Start writing...*"}
+                  {renderedContent || "*Start writing...*"}
                 </ReactMarkdown>
               </div>
             </div>
@@ -553,6 +955,43 @@ const MarkdownEditor = ({ content, title, noteId, onContentChange, onTitleChange
           />
         )}
       </div>
+
+      <Dialog open={versionsOpen} onOpenChange={setVersionsOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Version History</DialogTitle>
+          </DialogHeader>
+          <div className="max-h-[60vh] space-y-2 overflow-y-auto pr-1">
+            {versionsLoading ? (
+              <p className="py-6 text-center text-sm text-muted-foreground">Loading versions...</p>
+            ) : versions.length ? versions.map((version) => (
+              <div key={version.id} className="rounded-lg border border-border p-3">
+                <div className="mb-2 flex items-center gap-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{version.title}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Revision {version.revision || "unknown"} {version.savedAt ? `- ${new Date(version.savedAt).toLocaleString()}` : ""}
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={async () => {
+                      await onRestoreVersion?.(noteId, String(version.id));
+                      setVersionsOpen(false);
+                    }}
+                  >
+                    Restore
+                  </Button>
+                </div>
+                <p className="line-clamp-3 text-xs text-muted-foreground">{version.content || "Empty note"}</p>
+              </div>
+            )) : (
+              <p className="py-6 text-center text-sm text-muted-foreground">No previous versions yet.</p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

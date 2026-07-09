@@ -1,17 +1,60 @@
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { PrismAsyncLight as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark, oneLight } from "react-syntax-highlighter/dist/esm/styles/prism";
+import mermaid from "react-syntax-highlighter/dist/esm/languages/prism/mermaid";
 import { Button } from "@/components/ui/button";
 import { Copy, Check } from "lucide-react";
 import { useState, useEffect } from "react";
+import { DbmlDiagram, MermaidDiagram } from "@/components/editor/DiagramBlocks";
+
+const dbml = (Prism: any) => {
+  Prism.languages.dbml = {
+    comment: /\/\/.*|\/\*[\s\S]*?\*\//,
+    string: {
+      pattern: /'(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"/,
+      greedy: true,
+    },
+    keyword: /\b(?:Table|TableGroup|Ref|Enum|Project|Note|Indexes|Index|HeaderColor|database_type|primary key|increment|unique|not null|null|pk|note|ref|default|delete|update)\b/i,
+    "class-name": {
+      pattern: /(\b(?:Table|TableGroup|Enum|Project)\s+)[\w."-]+/,
+      lookbehind: true,
+    },
+    property: {
+      pattern: /(\[\s*)\w+(?=\s*:|\s*\])/,
+      lookbehind: true,
+    },
+    type: /\b(?:int|integer|bigint|float|double|decimal|numeric|boolean|bool|varchar|char|text|date|datetime|timestamp|time|uuid|json|jsonb|blob)\b/i,
+    operator: /[<>-]+|\b(?:as)\b/i,
+    punctuation: /[{}[\]():,.;]/,
+    number: /\b\d+(?:\.\d+)?\b/,
+  };
+};
+dbml.displayName = "dbml";
+dbml.aliases = ["database", "schema"];
+
+SyntaxHighlighter.registerLanguage("dbml", dbml);
+SyntaxHighlighter.registerLanguage("mermaid", mermaid);
 
 interface CodeBlockProps {
   language?: string;
   children: string;
 }
 
+const DBML_ALIASES = new Set(["dbml", "database", "schema"]);
+const MERMAID_ALIASES = new Set(["mermaid", "mmd"]);
+
+const normalizeLanguage = (language?: string) => {
+  const normalized = language?.toLowerCase();
+  if (normalized && DBML_ALIASES.has(normalized)) return "dbml";
+  if (normalized && MERMAID_ALIASES.has(normalized)) return "mermaid";
+  return normalized;
+};
+
 export const CodeBlock = ({ language, children }: CodeBlockProps) => {
   const [copied, setCopied] = useState(false);
   const [isDark, setIsDark] = useState(false);
+  const normalizedLanguage = normalizeLanguage(language);
+  const isMermaid = normalizedLanguage === "mermaid";
+  const isDbml = normalizedLanguage === "dbml";
 
   useEffect(() => {
     // Check if document has a dark theme or use prefers-color-scheme
@@ -48,7 +91,7 @@ export const CodeBlock = ({ language, children }: CodeBlockProps) => {
     <div className="relative group rounded-lg overflow-hidden my-3">
       <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-3 py-1.5 bg-muted/80 border-b border-border text-xs z-10">
         <span className="text-muted-foreground font-mono">
-          {language || "text"}
+          {normalizedLanguage || "text"}
         </span>
         <Button
           variant="ghost"
@@ -64,20 +107,30 @@ export const CodeBlock = ({ language, children }: CodeBlockProps) => {
           )}
         </Button>
       </div>
-      <SyntaxHighlighter
-        language={language || "text"}
-        style={isDark ? oneDark : oneLight}
-        customStyle={{
-          margin: 0,
-          paddingTop: "2.5rem",
-          borderRadius: "0.5rem",
-          fontSize: "0.8125rem",
-        }}
-        showLineNumbers={children.split("\n").length > 3}
-        wrapLines
-      >
-        {children}
-      </SyntaxHighlighter>
+      {isMermaid || isDbml ? (
+        <div className="pt-9">
+          {isMermaid ? (
+            <MermaidDiagram code={children} isDark={isDark} />
+          ) : (
+            <DbmlDiagram code={children} />
+          )}
+        </div>
+      ) : (
+        <SyntaxHighlighter
+          language={normalizedLanguage || "text"}
+          style={isDark ? oneDark : oneLight}
+          customStyle={{
+            margin: 0,
+            paddingTop: "2.5rem",
+            borderRadius: "0.5rem",
+            fontSize: "0.8125rem",
+          }}
+          showLineNumbers={children.split("\n").length > 3}
+          wrapLines
+        >
+          {children}
+        </SyntaxHighlighter>
+      )}
     </div>
   );
 };

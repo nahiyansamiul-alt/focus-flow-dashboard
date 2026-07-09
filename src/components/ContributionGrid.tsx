@@ -9,6 +9,7 @@ import {
 import { useSession, Session } from "@/contexts/SessionContext";
 import { useReminders } from "@/contexts/RemindersContext";
 import { ReminderPopup } from "./ReminderPopup";
+import { formatLocalDateKey } from "@/lib/api";
 
 interface DayData {
   level: number;
@@ -19,42 +20,54 @@ interface DayData {
 const ContributionGrid = () => {
   const [selectedDay, setSelectedDay] = useState<DayData | null>(null);
   const [reminderPopupOpen, setReminderPopupOpen] = useState(false);
-  const { getSessionsForDate, getLevelForDate, isLoading } = useSession();
+  const { sessions } = useSession();
   const { reminders, getRemindersByDate } = useReminders();
 
   // Generate data for all 12 months in calendar year order
   const today = new Date();
   const currentYear = today.getFullYear();
   
-  const getMonthData = (monthNum: number) => {
-    const actualMonth = new Date(currentYear, monthNum, 1);
-    const monthYear = actualMonth.getFullYear();
-    const monthName = actualMonth.toLocaleDateString("en-US", { month: "short" });
-    
-    const lastDayOfMonth = new Date(monthYear, monthNum + 1, 0).getDate();
-    
-    const data: DayData[] = [];
-    for (let day = 1; day <= lastDayOfMonth; day++) {
-      const date = new Date(monthYear, monthNum, day);
-      date.setHours(0, 0, 0, 0);
-      
-      const sessions = getSessionsForDate(date);
-      const level = getLevelForDate(date);
-      
-      data.push({ level, date, sessions });
-    }
-    
-    // Create 7-column grid (7 days per week)
-    const weeks: DayData[][] = [];
-    for (let i = 0; i < data.length; i += 7) {
-      weeks.push(data.slice(i, i + 7));
-    }
-    
-    return { monthName, weeks, data };
+  const sessionsByDate = useMemo(() => new Map(sessions.map((day) => [day.date, day.sessions])), [sessions]);
+  const reminderDates = useMemo(() => {
+    const keys = new Set<string>();
+    reminders.forEach((reminder) => keys.add(formatLocalDateKey(reminder.date)));
+    return keys;
+  }, [reminders]);
+
+  const getLevelForSessions = (daySessions: Session[]) => {
+    const totalMinutes = daySessions.reduce((acc, s) => acc + s.duration, 0);
+    if (totalMinutes === 0) return 0;
+    if (totalMinutes < 30) return 1;
+    if (totalMinutes < 60) return 2;
+    if (totalMinutes < 120) return 3;
+    return 4;
   };
 
-  // Get all 12 months in calendar order (January through December)
-  const months = Array.from({ length: 12 }, (_, i) => getMonthData(i));
+  const months = useMemo(() => {
+    const getMonthData = (monthNum: number) => {
+      const actualMonth = new Date(currentYear, monthNum, 1);
+      const monthYear = actualMonth.getFullYear();
+      const monthName = actualMonth.toLocaleDateString("en-US", { month: "short" });
+      const lastDayOfMonth = new Date(monthYear, monthNum + 1, 0).getDate();
+      const data: DayData[] = [];
+
+      for (let day = 1; day <= lastDayOfMonth; day++) {
+        const date = new Date(monthYear, monthNum, day);
+        date.setHours(0, 0, 0, 0);
+        const daySessions = sessionsByDate.get(formatLocalDateKey(date)) || [];
+        data.push({ level: getLevelForSessions(daySessions), date, sessions: daySessions });
+      }
+
+      const weeks: DayData[][] = [];
+      for (let i = 0; i < data.length; i += 7) {
+        weeks.push(data.slice(i, i + 7));
+      }
+
+      return { monthName, weeks, data };
+    };
+
+    return Array.from({ length: 12 }, (_, i) => getMonthData(i));
+  }, [currentYear, sessionsByDate]);
 
   const getLevelClass = (level: number) => {
     switch (level) {
@@ -68,7 +81,7 @@ const ContributionGrid = () => {
   };
 
   const hasReminder = (date: Date): boolean => {
-    return getRemindersByDate(date).length > 0;
+    return reminderDates.has(formatLocalDateKey(date));
   };
 
   const formatDate = (date: Date) => {

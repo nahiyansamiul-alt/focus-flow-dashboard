@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useNotes } from "@/contexts/NotesContext";
 import Folder from "@/components/Folder";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,7 @@ import {
 import { Plus, Edit2, Trash2, Check, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "motion/react";
+import { getFolderId, getNoteFolderId } from "@/lib/note-links";
 
 const folderColors = [
   // Reds / Pinks
@@ -65,6 +66,8 @@ const folderColors = [
   "#2C2C2C"
 ];
 
+const FOLDER_ROW_HEIGHT = 128;
+const FOLDER_OVERSCAN = 5;
 
 const FoldersSidebar = () => {
   const { 
@@ -84,6 +87,31 @@ const FoldersSidebar = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [scrollTop, setScrollTop] = useState(0);
+
+  const noteCountsByFolder = useMemo(() => {
+    const counts = new Map<string, number>();
+    notes.forEach((note) => {
+      const folderId = getNoteFolderId(note);
+      if (!folderId) return;
+      counts.set(folderId, (counts.get(folderId) || 0) + 1);
+    });
+    return counts;
+  }, [notes]);
+
+  const visibleFolders = useMemo(() => {
+    const viewportHeight = 760;
+    const startIndex = Math.max(0, Math.floor(scrollTop / FOLDER_ROW_HEIGHT) - FOLDER_OVERSCAN);
+    const endIndex = Math.min(
+      folders.length,
+      Math.ceil((scrollTop + viewportHeight) / FOLDER_ROW_HEIGHT) + FOLDER_OVERSCAN
+    );
+
+    return folders.slice(startIndex, endIndex).map((folder, offset) => ({
+      folder,
+      index: startIndex + offset,
+    }));
+  }, [folders, scrollTop]);
 
   const handleFolderClick = (folderId: string) => {
     selectFolder(folderId);
@@ -93,7 +121,7 @@ const FoldersSidebar = () => {
     if (newFolderName.trim()) {
       const folder = await createFolder(newFolderName.trim(), selectedColor);
       if (folder) {
-        selectFolder(folder._id || folder.id || "");
+        selectFolder(getFolderId(folder));
       }
       setNewFolderName("");
       setIsCreating(false);
@@ -128,31 +156,33 @@ const FoldersSidebar = () => {
         </Button>
       </div>
 
-      <div className="flex-1 overflow-y-auto pt-2">
-        <div className="flex flex-col gap-1">
+      <div
+        className="sidebar-scroll flex-1 overflow-y-auto overscroll-contain pt-2 pr-1"
+        onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
+      >
+        <div
+          className="relative"
+          style={{ height: folders.length * FOLDER_ROW_HEIGHT }}
+        >
           <AnimatePresence mode="popLayout">
-            {folders.map((folder, index) => {
-              const folderId = folder._id || folder.id || "";
-              
-              // Count notes that belong to this folder
-              const folderNotes = notes.filter(note => {
-                const noteFolderId = typeof note.folderId === 'object' ? note.folderId?._id : note.folderId;
-                return noteFolderId === folderId;
-              });
+            {visibleFolders.map(({ folder, index }) => {
+              const folderId = getFolderId(folder);
+              const noteCount = noteCountsByFolder.get(folderId) || 0;
               
               return (
                 <motion.div
                   key={folderId}
-                  layout
+                  className="absolute left-0 right-0"
+                  style={{ top: index * FOLDER_ROW_HEIGHT, height: FOLDER_ROW_HEIGHT - 6 }}
                   initial={{ scale: 0.95, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   exit={{ scale: 0.95, opacity: 0 }}
-                  transition={{ duration: 0.15, delay: index * 0.03 }}
+                  transition={{ duration: 0.15 }}
                 >
                   {/* Folder Card */}
                   <div 
                     className={cn(
-                      "flex flex-col items-center gap-1 p-3 rounded-lg cursor-pointer transition-colors group",
+                      "flex h-full flex-col items-center gap-1 rounded-lg p-3 cursor-pointer transition-colors group",
                       selectedFolderId === folderId
                         ? "bg-muted" 
                         : "hover:bg-muted/50"
@@ -163,7 +193,7 @@ const FoldersSidebar = () => {
                     <div className="w-full flex items-center justify-between">
                       {/* Note count badge */}
                       <span className="text-xs text-muted-foreground">
-                        {folderNotes.length}
+                        {noteCount}
                       </span>
 
                       {/* Actions */}
