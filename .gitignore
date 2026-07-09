@@ -6,6 +6,8 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+bun.lock
+bun.lockb
 
 node_modules
 dist
@@ -15,6 +17,7 @@ dist-ssr
 # Electron build output
 dist_electron/
 dist_electron
+dist_electron-trash-*/
 
 # Electron app packages
 *.exe
@@ -29,6 +32,15 @@ backend/node_modules
 backend/.env
 backend/.env.local
 backend/dist
+backend/*.db
+backend/*.sqlite
+backend/*.sqlite3
+backend/*.db-shm
+backend/*.db-wal
+backend/*.sqlite-shm
+backend/*.sqlite-wal
+backend/*.sqlite3-shm
+backend/*.sqlite3-wal
 
 # Environment variables
 .env

@@ -2,26 +2,48 @@ import { createContext, useContext, useState, useEffect, ReactNode } from "react
 import { getApiBaseUrl } from "@/lib/api";
 
 interface Folder {
-  _id?: string;
-  id?: string;
+  _id?: string | number;
+  id?: string | number;
   name: string;
   color?: string | null;
   createdAt?: Date;
 }
 
 interface Note {
-  _id?: string;
-  id?: string;
+  _id?: string | number;
+  id?: string | number;
   title: string;
   content: string;
-  folderId: string | { _id: string }; // Can be populated or just an ID
-  createdAt?: Date;
-  updatedAt?: Date;
+  folderId: string | number | { _id?: string | number; id?: string | number }; // Can be populated or just an ID
+  revision?: number;
+  pinned?: boolean;
+  lastViewedAt?: string | Date | null;
+  createdAt?: string | Date;
+  updatedAt?: string | Date;
+}
+
+interface NoteVersion {
+  id: string | number;
+  noteId: string | number;
+  title: string;
+  content: string;
+  folderId?: string | number | null;
+  revision?: number;
+  savedAt?: string;
+}
+
+interface IndexedNoteReferences {
+  backlinks: Note[];
+  outgoingLinks: Array<{ target: string; type: "note"; note: Note }>;
+  missingLinks: Array<{ target: string; type: "missing" }>;
+  unlinkedMentions: Array<{ note: Note; count: number; excerpt: string }>;
 }
 
 interface NotesContextType {
   folders: Folder[];
   notes: Note[];
+  allNotes: Note[];
+  recentNotes: Note[];
   selectedFolderId: string | null;
   selectedNoteId: string | null;
   
@@ -34,33 +56,61 @@ interface NotesContextType {
   
   // Note operations
   createNote: (title: string, content: string) => Promise<Note | null>;
-  updateNote: (id: string, updates: Partial<Note>) => Promise<void>;
+  createNoteInFolder: (folderId: string, title: string, content: string) => Promise<Note | null>;
+  updateNote: (id: string, updates: Partial<Note>) => Promise<Note | null>;
+  toggleNotePinned: (id: string, pinned: boolean) => Promise<Note | null>;
   deleteNote: (id: string) => Promise<void>;
   selectNote: (id: string | null) => void;
   getSelectedNote: () => Note | null;
+  getNoteById: (id: string) => Note | null;
+  searchNotes: (query: string) => Note[];
+  getIndexedReferences: (id: string) => Promise<IndexedNoteReferences | null>;
+  getNoteVersions: (id: string) => Promise<NoteVersion[]>;
+  restoreNoteVersion: (id: string, versionId: string) => Promise<Note | null>;
+  refreshNotes: () => Promise<void>;
 }
 
 const NotesContext = createContext<NotesContextType | undefined>(undefined);
 
+const normalizeId = (value?: string | number | null) => value == null ? "" : String(value);
+const getFolderId = (folder: Folder) => normalizeId(folder._id || folder.id);
+const getNoteId = (note: Note) => normalizeId(note._id || note.id);
+const getNoteFolderId = (note: Note) => {
+  if (typeof note.folderId === "object") return normalizeId(note.folderId?._id || note.folderId?.id);
+  return normalizeId(note.folderId);
+};
+const sortNotes = (items: Note[]) =>
+  [...items].sort((a, b) => {
+    if (Boolean(a.pinned) !== Boolean(b.pinned)) return a.pinned ? -1 : 1;
+    return new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime();
+  });
+let noteViewEndpointSupported = true;
+
 export const NotesProvider = ({ children }: { children: ReactNode }) => {
   const [folders, setFolders] = useState<Folder[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
+  const [allNotes, setAllNotes] = useState<Note[]>([]);
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
+  const recentNotes = sortNotes(allNotes.filter((note) => note.lastViewedAt)).slice(0, 8);
+  const viewedNoteIdsRef = useState(() => new Set<string>())[0];
 
   // Fetch folders on mount
   useEffect(() => {
     fetchFolders();
+    fetchAllNotes();
   }, []);
 
   // Fetch notes when folder is selected
   useEffect(() => {
     if (selectedFolderId) {
-      fetchNotesByFolder(selectedFolderId);
+      setNotes(allNotes.filter((note) => {
+        return getNoteFolderId(note) === normalizeId(selectedFolderId);
+      }));
     } else {
       setNotes([]);
     }
-  }, [selectedFolderId]);
+  }, [selectedFolderId, allNotes]);
 
   // Fetch all folders
   const fetchFolders = async () => {
@@ -69,7 +119,7 @@ export const NotesProvider = ({ children }: { children: ReactNode }) => {
       if (!response.ok) throw new Error("Failed to fetch folders");
       const data = await response.json();
       // Sort folders by creation date (oldest first, newest last)
-      const sortedData = data.sort((a: Folder, b: Folder) => {
+      const sortedData = [...data].sort((a: Folder, b: Folder) => {
         const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
         const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
         return dateA - dateB;
@@ -90,6 +140,22 @@ export const NotesProvider = ({ children }: { children: ReactNode }) => {
     } catch (error) {
       console.error("Error fetching notes:", error);
       setNotes([]);
+    }
+  };
+
+  const refreshNotes = async () => {
+    await Promise.all([fetchFolders(), fetchAllNotes()]);
+  };
+
+  const fetchAllNotes = async () => {
+    try {
+      const response = await fetch(`${getApiBaseUrl()}/notes`);
+      if (!response.ok) throw new Error("Failed to fetch all notes");
+      const data = await response.json();
+      setAllNotes(sortNotes(data));
+    } catch (error) {
+      console.error("Error fetching all notes:", error);
+      setAllNotes([]);
     }
   };
 
@@ -122,7 +188,7 @@ export const NotesProvider = ({ children }: { children: ReactNode }) => {
       if (!response.ok) throw new Error("Failed to update folder");
       const updatedFolder = await response.json();
       setFolders((prev) =>
-        prev.map((f) => ((f._id || f.id) === id ? updatedFolder : f))
+        prev.map((f) => (getFolderId(f) === normalizeId(id) ? updatedFolder : f))
       );
     } catch (error) {
       console.error("Error updating folder:", error);
@@ -137,18 +203,20 @@ export const NotesProvider = ({ children }: { children: ReactNode }) => {
       });
       if (!response.ok) throw new Error("Failed to delete folder");
       
-      setFolders((prev) => prev.filter((f) => (f._id || f.id) !== id));
+      setFolders((prev) => prev.filter((f) => getFolderId(f) !== normalizeId(id)));
+      setAllNotes((prev) => prev.filter((n) => {
+        return getNoteFolderId(n) !== normalizeId(id);
+      }));
       
       // If the deleted folder was selected, clear selection
-      if (selectedFolderId === id) {
+      if (normalizeId(selectedFolderId) === normalizeId(id)) {
         setSelectedFolderId(null);
         setSelectedNoteId(null);
         setNotes([]);
       } else {
         // Remove notes from the deleted folder from state
         setNotes((prev) => prev.filter((n) => {
-          const noteFolderId = typeof n.folderId === 'string' ? n.folderId : n.folderId._id;
-          return noteFolderId !== id;
+          return getNoteFolderId(n) !== normalizeId(id);
         }));
       }
     } catch (error) {
@@ -165,7 +233,7 @@ export const NotesProvider = ({ children }: { children: ReactNode }) => {
   // Get selected folder
   const getSelectedFolder = (): Folder | null => {
     if (!selectedFolderId) return null;
-    return folders.find((f) => (f._id || f.id) === selectedFolderId) || null;
+    return folders.find((f) => getFolderId(f) === normalizeId(selectedFolderId)) || null;
   };
 
   // Create note
@@ -175,16 +243,23 @@ export const NotesProvider = ({ children }: { children: ReactNode }) => {
       return null;
     }
     
+    return createNoteInFolder(selectedFolderId, title, content);
+  };
+
+  const createNoteInFolder = async (folderId: string, title: string, content: string): Promise<Note | null> => {
     try {
       const response = await fetch(`${getApiBaseUrl()}/notes`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, content, folderId: selectedFolderId }),
+        body: JSON.stringify({ title, content, folderId }),
       });
       if (!response.ok) throw new Error("Failed to create note");
       const note = await response.json();
-      setNotes((prev) => [note, ...prev]); // Add to beginning for newest first
-      setSelectedNoteId(note._id || note.id);
+      if (getNoteFolderId(note) === normalizeId(selectedFolderId)) {
+        setNotes((prev) => [note, ...prev]);
+      }
+      setAllNotes((prev) => sortNotes([note, ...prev]));
+      setSelectedNoteId(getNoteId(note));
       return note;
     } catch (error) {
       console.error("Error creating note:", error);
@@ -193,36 +268,53 @@ export const NotesProvider = ({ children }: { children: ReactNode }) => {
   };
 
   // Update note
-  const updateNote = async (id: string, updates: Partial<Note>) => {
+  const updateNote = async (id: string, updates: Partial<Note>): Promise<Note | null> => {
     try {
       // Only send fields that were actually updated, not undefined ones
       const updateData = Object.fromEntries(
         Object.entries(updates).filter(([, value]) => value !== undefined)
       );
       
-      console.log(`[NotesContext] Updating note ${id} with:`, updateData);
-      
+      const current = getNoteById(id);
       const response = await fetch(`${getApiBaseUrl()}/notes/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updateData),
+        body: JSON.stringify({
+          ...updateData,
+          clientUpdatedAt: current?.updatedAt,
+        }),
       });
       
       if (!response.ok) {
         const error = await response.json();
-        console.error(`[NotesContext] API Error updating note ${id}:`, error);
+        if (response.status === 409 && error.current) {
+          setNotes((prev) =>
+            prev.map((n) => (getNoteId(n) === normalizeId(id) ? error.current : n))
+          );
+          setAllNotes((prev) =>
+            sortNotes(prev.map((n) => (getNoteId(n) === normalizeId(id) ? error.current : n)))
+          );
+        }
         throw new Error(error.error || "Failed to update note");
       }
       
       const updatedNote = await response.json();
-      console.log(`[NotesContext] Note ${id} updated successfully:`, updatedNote);
       
       setNotes((prev) =>
-        prev.map((n) => ((n._id || n.id) === id ? updatedNote : n))
+        prev.map((n) => (getNoteId(n) === normalizeId(id) ? updatedNote : n))
       );
+      setAllNotes((prev) =>
+        sortNotes(prev.map((n) => (getNoteId(n) === normalizeId(id) ? updatedNote : n)))
+      );
+      return updatedNote;
     } catch (error) {
       console.error(`[NotesContext] Error updating note ${id}:`, error);
+      return null;
     }
+  };
+
+  const toggleNotePinned = async (id: string, pinned: boolean): Promise<Note | null> => {
+    return updateNote(id, { pinned });
   };
 
   // Delete note
@@ -233,10 +325,11 @@ export const NotesProvider = ({ children }: { children: ReactNode }) => {
       });
       if (!response.ok) throw new Error("Failed to delete note");
       
-      setNotes((prev) => prev.filter((n) => (n._id || n.id) !== id));
+      setNotes((prev) => prev.filter((n) => getNoteId(n) !== normalizeId(id)));
+      setAllNotes((prev) => prev.filter((n) => getNoteId(n) !== normalizeId(id)));
       
       // If the deleted note was selected, clear selection
-      if (selectedNoteId === id) {
+      if (normalizeId(selectedNoteId) === normalizeId(id)) {
         setSelectedNoteId(null);
       }
     } catch (error) {
@@ -247,12 +340,73 @@ export const NotesProvider = ({ children }: { children: ReactNode }) => {
   // Select note
   const selectNote = (id: string | null) => {
     setSelectedNoteId(id);
+    if (!id) return;
+    const viewedAt = new Date().toISOString();
+    setAllNotes((prev) =>
+      sortNotes(prev.map((note) => getNoteId(note) === normalizeId(id) ? { ...note, lastViewedAt: viewedAt } : note))
+    );
+    setNotes((prev) =>
+      prev.map((note) => getNoteId(note) === normalizeId(id) ? { ...note, lastViewedAt: viewedAt } : note)
+    );
+    if (!noteViewEndpointSupported || viewedNoteIdsRef.has(normalizeId(id))) return;
+    viewedNoteIdsRef.add(normalizeId(id));
+    fetch(`${getApiBaseUrl()}/notes/${id}/view`, { method: "POST" })
+      .then((response) => {
+        if (response.status === 404) noteViewEndpointSupported = false;
+      })
+      .catch(() => {});
   };
 
   // Get selected note
   const getSelectedNote = (): Note | null => {
     if (!selectedNoteId) return null;
-    return notes.find((n) => (n._id || n.id) === selectedNoteId) || null;
+    return getNoteById(selectedNoteId);
+  };
+
+  const getNoteById = (id: string): Note | null => {
+    return (
+      notes.find((n) => getNoteId(n) === normalizeId(id)) ||
+      allNotes.find((n) => getNoteId(n) === normalizeId(id)) ||
+      null
+    );
+  };
+
+  const searchNotes = (query: string): Note[] => {
+    const value = query.trim().toLowerCase();
+    if (!value) return sortNotes(allNotes);
+    return sortNotes(allNotes.filter((note) => {
+      return note.title.toLowerCase().includes(value) || (note.content || "").toLowerCase().includes(value);
+    }));
+  };
+
+  const getNoteVersions = async (id: string): Promise<NoteVersion[]> => {
+    const response = await fetch(`${getApiBaseUrl()}/notes/${id}/versions`);
+    if (!response.ok) throw new Error("Failed to fetch note versions");
+    return response.json();
+  };
+
+  const getIndexedReferences = async (id: string): Promise<IndexedNoteReferences | null> => {
+    try {
+      const response = await fetch(`${getApiBaseUrl()}/notes/${id}/references`);
+      if (!response.ok) return null;
+      return response.json();
+    } catch {
+      return null;
+    }
+  };
+
+  const restoreNoteVersion = async (id: string, versionId: string): Promise<Note | null> => {
+    try {
+      const response = await fetch(`${getApiBaseUrl()}/notes/${id}/restore/${versionId}`, { method: "POST" });
+      if (!response.ok) throw new Error("Failed to restore note version");
+      const note = await response.json();
+      setNotes((prev) => prev.map((n) => (getNoteId(n) === normalizeId(id) ? note : n)));
+      setAllNotes((prev) => sortNotes(prev.map((n) => (getNoteId(n) === normalizeId(id) ? note : n))));
+      return note;
+    } catch (error) {
+      console.error("Error restoring note version:", error);
+      return null;
+    }
   };
 
   return (
@@ -260,6 +414,8 @@ export const NotesProvider = ({ children }: { children: ReactNode }) => {
       value={{
         folders,
         notes,
+        allNotes,
+        recentNotes,
         selectedFolderId,
         selectedNoteId,
         createFolder,
@@ -268,10 +424,18 @@ export const NotesProvider = ({ children }: { children: ReactNode }) => {
         selectFolder,
         getSelectedFolder,
         createNote,
+        createNoteInFolder,
         updateNote,
+        toggleNotePinned,
         deleteNote,
         selectNote,
         getSelectedNote,
+        getNoteById,
+        searchNotes,
+        getIndexedReferences,
+        getNoteVersions,
+        restoreNoteVersion,
+        refreshNotes,
       }}
     >
       {children}

@@ -1,9 +1,10 @@
-import { useRef, forwardRef } from "react";
+import { useMemo, useRef, useState, forwardRef } from "react";
 import { motion, AnimatePresence, useInView } from "motion/react";
 import { useNotes } from "@/contexts/NotesContext";
 import { Button } from "@/components/ui/button";
 import { Plus, FileText, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getNoteFolderId, getNoteId } from "@/lib/note-links";
 
 interface AnimatedNoteItemProps {
   noteId: string;
@@ -66,6 +67,10 @@ const AnimatedNoteItem = forwardRef<HTMLDivElement, AnimatedNoteItemProps>(
   }
 );
 
+const NOTE_ROW_HEIGHT = 41;
+const NOTE_LIST_HEIGHT = 640;
+const NOTE_OVERSCAN = 8;
+
 const NotesList = () => {
   const { 
     selectedFolderId, 
@@ -78,12 +83,22 @@ const NotesList = () => {
   } = useNotes();
 
   const folder = getSelectedFolder();
+  const [scrollTop, setScrollTop] = useState(0);
   
   // Filter notes by the selected folder's folderId
   const filteredNotes = notes.filter(note => {
-    const noteFolderId = typeof note.folderId === 'object' ? note.folderId?._id : note.folderId;
-    return noteFolderId === selectedFolderId;
+    return getNoteFolderId(note) === String(selectedFolderId);
   });
+  const visibleNotes = useMemo(() => {
+    const start = Math.max(0, Math.floor(scrollTop / NOTE_ROW_HEIGHT) - NOTE_OVERSCAN);
+    const count = Math.ceil(NOTE_LIST_HEIGHT / NOTE_ROW_HEIGHT) + NOTE_OVERSCAN * 2;
+    return {
+      start,
+      items: filteredNotes.slice(start, start + count),
+      before: start * NOTE_ROW_HEIGHT,
+      after: Math.max(0, (filteredNotes.length - start - count) * NOTE_ROW_HEIGHT),
+    };
+  }, [filteredNotes, scrollTop]);
 
   const handleCreateNote = async () => {
     if (selectedFolderId) {
@@ -121,7 +136,10 @@ const NotesList = () => {
       </div>
 
       {/* Notes List */}
-      <div className="flex-1 overflow-y-auto space-y-1">
+      <div
+        className="sidebar-scroll flex-1 overflow-y-auto overscroll-contain pr-1"
+        onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
+      >
         <AnimatePresence>
           {filteredNotes.length === 0 ? (
             <motion.div
@@ -132,17 +150,23 @@ const NotesList = () => {
               No notes yet. Create one!
             </motion.div>
           ) : (
-            filteredNotes.map((note, index) => (
-              <AnimatedNoteItem
-                key={note._id || note.id}
-                noteId={note._id || note.id || ""}
-                title={note.title}
-                isSelected={(note._id || note.id) === selectedNoteId}
-                onClick={() => selectNote(note._id || note.id || null)}
-                onDelete={() => handleDeleteNote(note._id || note.id || "")}
-                index={index}
-              />
-            ))
+            <div>
+              <div style={{ height: visibleNotes.before }} />
+              <div className="space-y-1">
+                {visibleNotes.items.map((note, index) => (
+                  <AnimatedNoteItem
+                    key={getNoteId(note)}
+                    noteId={getNoteId(note)}
+                    title={note.title}
+                    isSelected={getNoteId(note) === String(selectedNoteId)}
+                    onClick={() => selectNote(getNoteId(note) || null)}
+                    onDelete={() => handleDeleteNote(getNoteId(note))}
+                    index={visibleNotes.start + index}
+                  />
+                ))}
+              </div>
+              <div style={{ height: visibleNotes.after }} />
+            </div>
           )}
         </AnimatePresence>
       </div>

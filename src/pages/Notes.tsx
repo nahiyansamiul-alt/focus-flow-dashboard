@@ -1,25 +1,80 @@
-import { useState, useCallback } from "react";
+import { useRef, useState, useCallback, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { NotesProvider, useNotes } from "@/contexts/NotesContext";
 import { useNoteTimer } from "@/contexts/NoteTimerContext";
 import FoldersSidebar from "@/components/FoldersSidebar";
 import NotesList from "@/components/NotesList";
 import MarkdownEditor from "@/components/MarkdownEditor";
+import GraphView from "@/components/GraphView";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { ArrowLeft, FileText, Plus, FolderClosed, List, PenTool } from "lucide-react";
+import { ArrowLeft, FileText, Plus, FolderClosed, List, PenTool, Network, Download, Upload, HelpCircle, Search, CalendarDays, LayoutTemplate, Pin, Clock } from "lucide-react";
+import {
+  CommandDialog,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { ActiveTimerIndicator } from "@/components/ActiveTimerIndicator";
+import { exportMarkdownVault, readMarkdownImportFiles, uniqueImportTitle } from "@/lib/markdown-vault";
+import { getApiBaseUrl } from "@/lib/api";
+import { getNoteFolderId, getNoteId } from "@/lib/note-links";
+import { toast } from "sonner";
+
+const noteTemplates = [
+  {
+    name: "Meeting Notes",
+    content: "## Agenda\n- \n\n## Notes\n\n## Decisions\n- \n\n## Follow-ups\n- [ ] ",
+  },
+  {
+    name: "Project Brief",
+    content: "## Goal\n\n## Context\n\n## Plan\n\n## Risks\n\n## Next Actions\n- [ ] ",
+  },
+  {
+    name: "Daily Review",
+    content: "## Wins\n- \n\n## Focus\n- \n\n## Notes\n\n## Tomorrow\n- [ ] ",
+  },
+];
 
 const NotesContent = () => {
   const navigate = useNavigate();
-  const { getSelectedNote, updateNote, selectedNoteId, selectedFolderId, createNote, selectNote } = useNotes();
+  const {
+    folders,
+    allNotes,
+    recentNotes,
+    getSelectedNote,
+    getIndexedReferences,
+    getNoteVersions,
+    restoreNoteVersion,
+    updateNote,
+    toggleNotePinned,
+    selectedNoteId,
+    selectedFolderId,
+    createNote,
+    createNoteInFolder,
+    selectFolder,
+    selectNote,
+    refreshNotes
+  } = useNotes();
   const { toggleTimer, resetTimer, saveSession } = useNoteTimer();
+  const importInputRef = useRef<HTMLInputElement>(null);
   const [isFoldersCollapsed, setIsFoldersCollapsed] = useState(false);
   const [isNotesListCollapsed, setIsNotesListCollapsed] = useState(false);
+  const [isGraphView, setIsGraphView] = useState(false);
+  const [commandOpen, setCommandOpen] = useState(false);
+  const [commandQuery, setCommandQuery] = useState("");
   
   const selectedNote = getSelectedNote();
+  const commandNotes = useMemo(() => {
+    const q = commandQuery.trim().toLowerCase();
+    const source = q
+      ? allNotes.filter((note) => note.title.toLowerCase().includes(q) || (note.content || "").toLowerCase().includes(q))
+      : allNotes;
+    return source.slice(0, 25);
+  }, [allNotes, commandQuery]);
 
   const handleCreateNote = async () => {
     if (selectedFolderId) {
@@ -30,8 +85,109 @@ const NotesContent = () => {
     }
   };
 
+  const openNote = useCallback((noteId: string, folderId?: string) => {
+    if (folderId && folderId !== selectedFolderId) {
+      selectFolder(folderId);
+    }
+    selectNote(noteId);
+    setIsGraphView(false);
+    setCommandOpen(false);
+  }, [selectFolder, selectNote, selectedFolderId]);
+
   const toggleFolders = useCallback(() => setIsFoldersCollapsed(prev => !prev), []);
   const toggleNotesList = useCallback(() => setIsNotesListCollapsed(prev => !prev), []);
+  const handleGraphNoteSelect = useCallback((noteId: string, folderId?: string) => {
+    openNote(noteId, folderId);
+  }, [openNote]);
+  const handleOpenFolder = useCallback((folderId: string) => {
+    selectFolder(folderId);
+    setIsGraphView(false);
+  }, [selectFolder]);
+  const handleCreateLinkedNote = useCallback(async (title: string, folderId?: string) => {
+    const note = folderId
+      ? await createNoteInFolder(folderId, title, "")
+      : await createNote(title, "");
+    if (note) {
+      const noteId = note._id || note.id || "";
+      if (folderId && folderId !== selectedFolderId) {
+        selectFolder(folderId);
+      }
+      selectNote(noteId);
+      return note._id || note.id || "";
+    }
+    return null;
+  }, [createNote, createNoteInFolder, selectFolder, selectNote, selectedFolderId]);
+
+  const createNoteFromTemplate = useCallback(async (templateName: string, content: string) => {
+    const note = await createNote(templateName, content);
+    if (note) {
+      openNote(getNoteId(note), getNoteFolderId(note));
+      toast.success(`Created ${templateName}`);
+    }
+  }, [createNote, openNote]);
+
+  const createDailyNote = useCallback(async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const title = `Daily ${today}`;
+    const existing = allNotes.find((note) => note.title.toLowerCase() === title.toLowerCase());
+    if (existing) {
+      openNote(getNoteId(existing), getNoteFolderId(existing));
+      return;
+    }
+    await createNoteFromTemplate(title, `# ${title}\n\n## Focus\n- \n\n## Notes\n\n## Tasks\n- [ ] `);
+  }, [allNotes, createNoteFromTemplate, openNote]);
+  const handleExportVault = useCallback(async () => {
+    try {
+      const result = await exportMarkdownVault(allNotes, folders);
+      toast.success(`Exported ${result.count} notes`);
+    } catch (error) {
+      console.error("Markdown export failed:", error);
+      toast.error("Export cancelled or failed");
+    }
+  }, [allNotes, folders]);
+  const getOrCreateImportFolder = useCallback(async (name: string) => {
+    const existing = folders.find((folder) => folder.name.toLowerCase() === name.toLowerCase());
+    if (existing) return existing._id || existing.id || "";
+
+    const response = await fetch(`${getApiBaseUrl()}/folders`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, color: "#547792" }),
+    });
+    if (!response.ok) throw new Error(`Failed to create folder ${name}`);
+    const folder = await response.json();
+    return folder._id || folder.id || "";
+  }, [folders]);
+  const handleImportVault = useCallback(async (files: FileList | null) => {
+    if (!files?.length) return;
+    try {
+      const imports = await readMarkdownImportFiles(files);
+      if (!imports.length) {
+        toast.info("No Markdown files found");
+        return;
+      }
+
+      const folderIds = new Map<string, string>();
+      const existingNotes = [...allNotes];
+      for (const item of imports) {
+        if (!folderIds.has(item.folderName)) {
+          folderIds.set(item.folderName, await getOrCreateImportFolder(item.folderName));
+        }
+        const folderId = folderIds.get(item.folderName)!;
+        const title = uniqueImportTitle(item.title, existingNotes);
+        const note = await createNoteInFolder(folderId, title, item.content);
+        if (note) existingNotes.push(note);
+      }
+
+      await refreshNotes();
+      toast.success(`Imported ${imports.length} Markdown files`);
+    } catch (error) {
+      console.error("Markdown import failed:", error);
+      toast.error("Import failed");
+    } finally {
+      if (importInputRef.current) importInputRef.current.value = "";
+    }
+  }, [allNotes, createNoteInFolder, getOrCreateImportFolder, refreshNotes]);
 
   useKeyboardShortcuts({
     onToggleFolders: toggleFolders,
@@ -40,6 +196,18 @@ const NotesContent = () => {
     onTimerReset: resetTimer,
     onTimerSave: saveSession,
   });
+
+  useEffect(() => {
+    const handleKey = (event: KeyboardEvent) => {
+      const mod = event.metaKey || event.ctrlKey;
+      if (mod && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setCommandOpen(true);
+      }
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, []);
 
   // Calculate panel widths based on collapse states
   const getFoldersWidth = () => isFoldersCollapsed ? "0px" : "200px";
@@ -88,6 +256,55 @@ const NotesContent = () => {
         </h1>
         <ActiveTimerIndicator compact className="ml-2" />
         <div className="flex-1" />
+        <input
+          ref={importInputRef}
+          type="file"
+          accept=".md,text/markdown"
+          multiple
+          className="hidden"
+          onChange={(event) => handleImportVault(event.target.files)}
+          {...({ webkitdirectory: "true", directory: "true" } as any)}
+        />
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setCommandOpen(true)}
+          title="Search notes"
+        >
+          <Search className="w-5 h-5" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={createDailyNote}
+          title="Daily note"
+        >
+          <CalendarDays className="w-5 h-5" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => importInputRef.current?.click()}
+          title="Import Markdown folder"
+        >
+          <Upload className="w-5 h-5" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={handleExportVault}
+          title="Export Markdown folder"
+        >
+          <Download className="w-5 h-5" />
+        </Button>
+        <Button
+          variant={isGraphView ? "default" : "ghost"}
+          size="icon"
+          onClick={() => setIsGraphView(prev => !prev)}
+          title={isGraphView ? "Show editor" : "Graph view"}
+        >
+          <Network className="w-5 h-5" />
+        </Button>
         <Button
           variant="ghost"
           size="icon"
@@ -95,6 +312,14 @@ const NotesContent = () => {
           title="Canvas"
         >
           <PenTool className="w-5 h-5" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => navigate("/help")}
+          title="Help"
+        >
+          <HelpCircle className="w-5 h-5" />
         </Button>
         <ThemeToggle />
         {selectedFolderId && (
@@ -121,18 +346,16 @@ const NotesContent = () => {
           }}
         >
           <div 
-            className="h-full"
+            className="h-full min-h-0"
             style={{
               transform: isFoldersCollapsed ? 'translateX(-100%)' : 'translateX(0)',
               opacity: isFoldersCollapsed ? 0 : 1,
               transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease-out',
             }}
           >
-            <ScrollArea className="h-full">
-              <div className="p-4 min-w-[200px]">
-                <FoldersSidebar />
-              </div>
-            </ScrollArea>
+            <div className="h-full min-w-[200px] p-4">
+              <FoldersSidebar />
+            </div>
           </div>
         </div>
 
@@ -145,31 +368,53 @@ const NotesContent = () => {
           }}
         >
           <div 
-            className="h-full"
+            className="h-full min-h-0"
             style={{
               transform: isNotesListCollapsed ? 'translateX(-100%)' : 'translateX(0)',
               opacity: isNotesListCollapsed ? 0 : 1,
               transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease-out',
             }}
           >
-            <ScrollArea className="h-full">
-              <div className="p-4 min-w-[240px]">
-                <NotesList />
-              </div>
-            </ScrollArea>
+            <div className="h-full min-w-[240px] p-4">
+              <NotesList />
+            </div>
           </div>
         </div>
 
         {/* Editor Area */}
         <div className="flex-1 h-full overflow-hidden">
-          <main className="h-full p-6 overflow-hidden">
-            {selectedNote ? (
+          <main className={isGraphView ? "h-full overflow-hidden" : "h-full p-6 overflow-hidden"}>
+            {isGraphView ? (
+              <GraphView
+                selectedNoteId={selectedNoteId}
+                notes={allNotes}
+                folders={folders}
+                onSelectNote={handleGraphNoteSelect}
+              />
+            ) : selectedNote ? (
               <MarkdownEditor
                 content={selectedNote.content}
                 title={selectedNote.title}
                 noteId={selectedNote._id || selectedNote.id || ""}
-                onContentChange={(content) => updateNote(selectedNote._id || selectedNote.id || "", { content })}
-                onTitleChange={(title) => updateNote(selectedNote._id || selectedNote.id || "", { title })}
+                allNotes={allNotes}
+                folders={folders}
+                onOpenNote={handleGraphNoteSelect}
+                onOpenFolder={handleOpenFolder}
+                onCreateLinkedNote={handleCreateLinkedNote}
+                onTogglePinned={async (pinned) => {
+                  await toggleNotePinned(getNoteId(selectedNote), pinned);
+                }}
+                getIndexedReferences={getIndexedReferences}
+                getNoteVersions={getNoteVersions}
+                onRestoreVersion={async (noteId, versionId) => {
+                  const restored = await restoreNoteVersion(noteId, versionId);
+                  if (restored) toast.success("Version restored");
+                }}
+                onContentChange={async (content) => {
+                  const updated = await updateNote(getNoteId(selectedNote), { content });
+                  return Boolean(updated);
+                }}
+                onTitleChange={(title) => updateNote(getNoteId(selectedNote), { title })}
               />
             ) : (
               <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
@@ -181,6 +426,49 @@ const NotesContent = () => {
           </main>
         </div>
       </div>
+
+      <CommandDialog open={commandOpen} onOpenChange={setCommandOpen}>
+        <CommandInput placeholder="Search notes, actions, templates..." value={commandQuery} onValueChange={setCommandQuery} />
+        <CommandList>
+          <CommandEmpty>No results found.</CommandEmpty>
+          <CommandGroup heading="Actions">
+            <CommandItem onSelect={createDailyNote}>
+              <CalendarDays className="mr-2 h-4 w-4" />
+              Daily note
+            </CommandItem>
+            <CommandItem onSelect={() => setIsGraphView(prev => !prev)}>
+              <Network className="mr-2 h-4 w-4" />
+              Toggle graph view
+            </CommandItem>
+          </CommandGroup>
+          <CommandGroup heading="Templates">
+            {noteTemplates.map((template) => (
+              <CommandItem key={template.name} onSelect={() => createNoteFromTemplate(template.name, template.content)}>
+                <LayoutTemplate className="mr-2 h-4 w-4" />
+                {template.name}
+              </CommandItem>
+            ))}
+          </CommandGroup>
+          {recentNotes.length > 0 && (
+            <CommandGroup heading="Recent">
+              {recentNotes.map((note) => (
+                <CommandItem key={`recent-${getNoteId(note)}`} onSelect={() => openNote(getNoteId(note), getNoteFolderId(note))}>
+                  <Clock className="mr-2 h-4 w-4" />
+                  {note.title}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          )}
+          <CommandGroup heading="Notes">
+            {commandNotes.map((note) => (
+              <CommandItem key={getNoteId(note)} onSelect={() => openNote(getNoteId(note), getNoteFolderId(note))}>
+                {note.pinned ? <Pin className="mr-2 h-4 w-4" /> : <FileText className="mr-2 h-4 w-4" />}
+                {note.title}
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        </CommandList>
+      </CommandDialog>
     </div>
   );
 };

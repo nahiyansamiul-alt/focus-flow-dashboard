@@ -3,6 +3,7 @@ import { useNoteTimer } from "@/contexts/NoteTimerContext";
 import { useMemo } from "react";
 import { BookOpen, Play, Pause } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { formatLocalDateKey } from "@/lib/api";
 
 const ActiveNoteSession = () => {
   const { time, isRunning, noteTitle } = useNoteTimer();
@@ -57,15 +58,15 @@ const Stats = () => {
   const { sessions } = useSession();
 
   const stats = useMemo(() => {
-    const today = new Date().toISOString().split("T")[0];
-    const todayData = sessions.find((d) => d.date === today);
-    const todaySessions = todayData?.sessions || [];
+    const sessionsByDate = new Map(sessions.map((day) => [day.date, day.sessions]));
+    const today = formatLocalDateKey();
+    const todaySessions = sessionsByDate.get(today) || [];
     const totalMinutesToday = todaySessions.reduce((acc, s) => acc + s.duration, 0);
 
     // Calculate weekly stats
     const weekStart = new Date();
     weekStart.setDate(weekStart.getDate() - weekStart.getDay());
-    const weekKey = weekStart.toISOString().split("T")[0];
+    const weekKey = formatLocalDateKey(weekStart);
     
     let weekCount = 0;
     let weekMinutes = 0;
@@ -80,9 +81,9 @@ const Stats = () => {
     let streak = 0;
     const checkDate = new Date();
     while (true) {
-      const dateKey = checkDate.toISOString().split("T")[0];
-      const dayData = sessions.find((d) => d.date === dateKey);
-      if (dayData && dayData.sessions.length > 0) {
+      const dateKey = formatLocalDateKey(checkDate);
+      const daySessions = sessionsByDate.get(dateKey);
+      if (daySessions && daySessions.length > 0) {
         streak++;
         checkDate.setDate(checkDate.getDate() - 1);
       } else {

@@ -5,6 +5,13 @@ const API_BASE_URL = isElectron()
   ? 'http://localhost:5000/api'
   : import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
+export const formatLocalDateKey = (date = new Date()) => {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, '0');
+  const day = `${date.getDate()}`.padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 /** Use this in contexts/components that call fetch() directly so endpoints work in both web and Electron. */
 export function getApiBaseUrl(): string {
   return API_BASE_URL;
@@ -130,6 +137,7 @@ export const remindersAPI = {
 // HISTORY API
 export const historyAPI = {
   getAll: () => fetchAPI<any[]>('/history'),
+  getActivity: () => fetchAPI<any[]>('/history/activity'),
   getByDate: (date: string) => fetchAPI<any[]>(`/history/${date}`),
   create: (action: string, details?: string, sessionData?: any) =>
     fetchAPI<any>('/history', {
@@ -140,6 +148,7 @@ export const historyAPI = {
         duration: sessionData?.duration,
         startTime: sessionData?.startTime,
         endTime: sessionData?.endTime,
+        date: sessionData?.date || formatLocalDateKey(),
       }),
     }),
 };

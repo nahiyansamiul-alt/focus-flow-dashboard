@@ -2,7 +2,7 @@ import sqlite3 from 'sqlite3';
 import path from 'path';
 
 // For standalone Node.js backend (not Electron)
-const dbPath = process.env.DB_PATH || path.join(process.cwd(), 'focusflow.db');
+const dbPath = process.env.FOCUSFLOW_DB_PATH || process.env.DB_PATH || path.join(process.cwd(), 'focusflow.db');
 
 export const db = new sqlite3.Database(dbPath, (err) => {
   if (err) {
@@ -15,6 +15,8 @@ export const db = new sqlite3.Database(dbPath, (err) => {
 
 // Enable foreign keys
 db.run('PRAGMA foreign_keys = ON');
+db.run('PRAGMA journal_mode = WAL');
+db.run('PRAGMA synchronous = NORMAL');
 
 export function initializeDatabase() {
   db.serialize(() => {
@@ -64,11 +66,26 @@ export function initializeDatabase() {
         title TEXT NOT NULL,
         content TEXT,
         folderId INTEGER,
+        revision INTEGER DEFAULT 1,
+        pinned BOOLEAN DEFAULT 0,
+        lastViewedAt TEXT,
         createdAt TEXT DEFAULT CURRENT_TIMESTAMP,
         updatedAt TEXT DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (folderId) REFERENCES folders(id) ON DELETE SET NULL
       )
     `);
+
+    const noteColumnsToAdd = [
+      'ALTER TABLE notes ADD COLUMN revision INTEGER DEFAULT 1',
+      'ALTER TABLE notes ADD COLUMN pinned BOOLEAN DEFAULT 0',
+      'ALTER TABLE notes ADD COLUMN lastViewedAt TEXT'
+    ];
+
+    noteColumnsToAdd.forEach((sql: string) => {
+      db.run(sql, () => {
+        // Ignore errors - columns might already exist
+      });
+    });
 
     // Folders table
     db.run(`
@@ -97,8 +114,12 @@ export function initializeDatabase() {
 
     // Create index for faster queries
     db.run(`CREATE INDEX IF NOT EXISTS idx_history_date ON history(date)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_history_action_date ON history(action, date)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_history_timestamp ON history(timestamp)`);
     db.run(`CREATE INDEX IF NOT EXISTS idx_todos_folderId ON todos(folderId)`);
     db.run(`CREATE INDEX IF NOT EXISTS idx_notes_folderId ON notes(folderId)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_notes_updatedAt ON notes(updatedAt)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_notes_pinned_updatedAt ON notes(pinned, updatedAt)`);
 
     // Reminders table
     db.run(`

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -38,6 +38,7 @@ interface TodoFormProps {
   onOpenChange: (open: boolean) => void;
   onSubmit: (data: TodoFormData) => void;
   initialData?: Partial<TodoFormData>;
+  mode?: "create" | "edit";
 }
 
 const DAYS_OF_WEEK = [
@@ -50,7 +51,18 @@ const DAYS_OF_WEEK = [
   { value: 6, label: "Sat" },
 ];
 
-export const TodoForm = ({ isOpen, onOpenChange, onSubmit, initialData }: TodoFormProps) => {
+const defaultFormData: TodoFormData = {
+  title: "",
+  repeatType: "none",
+  repeatInterval: 1,
+  repeatDays: [],
+  repeatLimit: null,
+  repeatEndDate: null,
+  priority: "medium",
+  dueDate: null,
+};
+
+export const TodoForm = ({ isOpen, onOpenChange, onSubmit, initialData, mode = "create" }: TodoFormProps) => {
   const [title, setTitle] = useState(initialData?.title || "");
   const [repeatType, setRepeatType] = useState<TodoFormData["repeatType"]>(
     initialData?.repeatType || "none"
@@ -63,6 +75,21 @@ export const TodoForm = ({ isOpen, onOpenChange, onSubmit, initialData }: TodoFo
   const [hasRepeatEndDate, setHasRepeatEndDate] = useState(!!initialData?.repeatEndDate);
   const [priority, setPriority] = useState<TodoFormData["priority"]>(initialData?.priority || "medium");
   const [dueDate, setDueDate] = useState<Date | null>(initialData?.dueDate || null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const data = { ...defaultFormData, ...initialData };
+    setTitle(data.title);
+    setRepeatType(data.repeatType);
+    setRepeatInterval(data.repeatInterval);
+    setRepeatDays(data.repeatDays);
+    setRepeatLimit(data.repeatLimit);
+    setHasRepeatLimit(data.repeatLimit !== null && data.repeatLimit !== undefined);
+    setRepeatEndDate(data.repeatEndDate);
+    setHasRepeatEndDate(!!data.repeatEndDate);
+    setPriority(data.priority);
+    setDueDate(data.dueDate);
+  }, [initialData, isOpen]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -79,17 +106,18 @@ export const TodoForm = ({ isOpen, onOpenChange, onSubmit, initialData }: TodoFo
       dueDate,
     });
 
-    // Reset form
-    setTitle("");
-    setRepeatType("none");
-    setRepeatInterval(1);
-    setRepeatDays([]);
-    setRepeatLimit(null);
-    setHasRepeatLimit(false);
-    setRepeatEndDate(null);
-    setHasRepeatEndDate(false);
-    setPriority("medium");
-    setDueDate(null);
+    if (mode === "create") {
+      setTitle("");
+      setRepeatType("none");
+      setRepeatInterval(1);
+      setRepeatDays([]);
+      setRepeatLimit(null);
+      setHasRepeatLimit(false);
+      setRepeatEndDate(null);
+      setHasRepeatEndDate(false);
+      setPriority("medium");
+      setDueDate(null);
+    }
     onOpenChange(false);
   };
 
@@ -113,7 +141,9 @@ export const TodoForm = ({ isOpen, onOpenChange, onSubmit, initialData }: TodoFo
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="font-display text-xl">Add New Task</DialogTitle>
+          <DialogTitle className="font-display text-xl">
+            {mode === "edit" ? "Edit Task" : "Add New Task"}
+          </DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 pt-4">
           {/* Title */}
@@ -319,7 +349,7 @@ export const TodoForm = ({ isOpen, onOpenChange, onSubmit, initialData }: TodoFo
               Cancel
             </Button>
             <Button type="submit" disabled={!title.trim()}>
-              Add Task
+              {mode === "edit" ? "Save Changes" : "Add Task"}
             </Button>
           </div>
         </form>

@@ -25,6 +25,10 @@ const db = new sqlite3.Database(dbPath, (err) => {
   }
   console.log('✓ SQLite Database connected:', dbPath);
 
+  db.run('PRAGMA foreign_keys = ON');
+  db.run('PRAGMA journal_mode = WAL');
+  db.run('PRAGMA synchronous = NORMAL');
+
   // Create tables if they don't exist
   const initSQL = `
     CREATE TABLE IF NOT EXISTS todos (
@@ -48,8 +52,51 @@ const db = new sqlite3.Database(dbPath, (err) => {
       title TEXT NOT NULL,
       content TEXT,
       folderId INTEGER,
+      revision INTEGER DEFAULT 1,
+      pinned INTEGER DEFAULT 0,
+      lastViewedAt DATETIME,
       createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
       updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS note_versions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      noteId INTEGER NOT NULL,
+      title TEXT NOT NULL,
+      content TEXT,
+      folderId INTEGER,
+      revision INTEGER,
+      savedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (noteId) REFERENCES notes(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS schema_migrations (
+      id TEXT PRIMARY KEY,
+      appliedAt DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS note_links (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      sourceNoteId INTEGER NOT NULL,
+      targetTitle TEXT NOT NULL,
+      targetNormalized TEXT NOT NULL,
+      targetNoteId INTEGER,
+      raw TEXT,
+      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (sourceNoteId) REFERENCES notes(id) ON DELETE CASCADE,
+      FOREIGN KEY (targetNoteId) REFERENCES notes(id) ON DELETE SET NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS note_mentions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      sourceNoteId INTEGER NOT NULL,
+      targetNoteId INTEGER NOT NULL,
+      targetNormalized TEXT NOT NULL,
+      count INTEGER DEFAULT 1,
+      excerpt TEXT,
+      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (sourceNoteId) REFERENCES notes(id) ON DELETE CASCADE,
+      FOREIGN KEY (targetNoteId) REFERENCES notes(id) ON DELETE CASCADE
     );
 
     CREATE TABLE IF NOT EXISTS folders (
@@ -124,6 +171,47 @@ const db = new sqlite3.Database(dbPath, (err) => {
       });
     }
 
+    function runStartupStatements(statements, done) {
+      let statementIndex = 0;
+      function runNext() {
+        if (statementIndex >= statements.length) {
+          done();
+          return;
+        }
+        const statement = statements[statementIndex++];
+        db.run(statement, (err) => {
+          if (err) console.warn('⚠ Startup SQL failed:', err.message);
+          runNext();
+        });
+      }
+      runNext();
+    }
+
+    function finishStartup() {
+      runStartupStatements([
+        'CREATE INDEX IF NOT EXISTS idx_history_date ON history(date)',
+        'CREATE INDEX IF NOT EXISTS idx_history_action_date ON history(action, date)',
+        'CREATE INDEX IF NOT EXISTS idx_history_createdAt ON history(createdAt)',
+        'CREATE INDEX IF NOT EXISTS idx_notes_folderId ON notes(folderId)',
+        'CREATE INDEX IF NOT EXISTS idx_notes_updatedAt ON notes(updatedAt)',
+        'CREATE INDEX IF NOT EXISTS idx_notes_title ON notes(title)',
+        'CREATE INDEX IF NOT EXISTS idx_notes_pinned_updatedAt ON notes(pinned, updatedAt)',
+        'CREATE INDEX IF NOT EXISTS idx_note_versions_noteId_savedAt ON note_versions(noteId, savedAt)',
+        'CREATE INDEX IF NOT EXISTS idx_note_links_source ON note_links(sourceNoteId)',
+        'CREATE INDEX IF NOT EXISTS idx_note_links_target ON note_links(targetNoteId)',
+        'CREATE INDEX IF NOT EXISTS idx_note_links_target_normalized ON note_links(targetNormalized)',
+        'CREATE INDEX IF NOT EXISTS idx_note_mentions_source ON note_mentions(sourceNoteId)',
+        'CREATE INDEX IF NOT EXISTS idx_note_mentions_target ON note_mentions(targetNoteId)',
+        `INSERT OR IGNORE INTO schema_migrations (id) VALUES
+         ('001_initial_runtime_schema'),
+         ('002_notes_revision_pin_recent'),
+         ('003_note_link_indexes')`,
+      ], () => {
+        rebuildAllNoteIndexes();
+        startServer();
+      });
+    }
+
     // Ensure folders.color and history-related columns
     ensureColumn('folders', 'color TEXT', 'color', (errFolders, addedFolders) => {
       if (errFolders) console.warn('⚠ Could not ensure folders.color:', errFolders.message);
@@ -162,6 +250,25 @@ const db = new sqlite3.Database(dbPath, (err) => {
                   if (err6) console.warn('⚠ Could not ensure history.endTime:', err6.message);
                   else if (added6) console.log('✓ Added missing column history.endTime');
 
+                  const noteColumns = [
+                    ['revision INTEGER DEFAULT 1', 'revision'],
+                    ['pinned INTEGER DEFAULT 0', 'pinned'],
+                    ['lastViewedAt DATETIME', 'lastViewedAt'],
+                  ];
+                  let noteIdx = 0;
+                  function ensureNextNoteCol(done) {
+                    if (noteIdx >= noteColumns.length) {
+                      done();
+                      return;
+                    }
+                    const [colDef, colName] = noteColumns[noteIdx++];
+                    ensureColumn('notes', colDef, colName, (err, added) => {
+                      if (err) console.warn(`⚠ Could not ensure notes.${colName}:`, err.message);
+                      else if (added) console.log(`✓ Added missing column notes.${colName}`);
+                      ensureNextNoteCol(done);
+                    });
+                  }
+
                   // Ensure todos repeat/dueDate fields
                   const todoColumns = [
                     ['dueDate TEXT', 'dueDate'],
@@ -175,7 +282,7 @@ const db = new sqlite3.Database(dbPath, (err) => {
                   let idx = 0;
                   function ensureNextTodoCol() {
                     if (idx >= todoColumns.length) {
-                      startServer();
+                      ensureNextNoteCol(finishStartup);
                       return;
                     }
                     const [colDef, colName] = todoColumns[idx++];
@@ -285,14 +392,205 @@ app.delete('/api/todos/:id', (req, res) => {
   });
 });
 
+const mapNoteRow = (row) => row ? ({ ...row, _id: row.id, pinned: Boolean(row.pinned) }) : row;
+
+const normalizeTitle = (value = '') =>
+  String(value)
+    .trim()
+    .replace(/\.md$/i, '')
+    .replace(/^\/+|\/+$/g, '')
+    .toLowerCase();
+
+const displayWikiTarget = (value = '') => String(value).trim().replace(/\.md$/i, '');
+
+const parseWikiLinks = (content = '') => {
+  const links = [];
+  const seen = new Set();
+  const re = /!?\[\[([^\]]+)\]\]/g;
+  let match;
+  while ((match = re.exec(content || ''))) {
+    const [targetWithHeading] = String(match[1]).split('|');
+    const [target] = targetWithHeading.split('#');
+    const title = displayWikiTarget(target);
+    const normalized = normalizeTitle(title);
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    links.push({ raw: match[0], targetTitle: title, targetNormalized: normalized });
+  }
+  return links;
+};
+
+const stripCodeAndLinks = (content = '') =>
+  String(content || '')
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/~~~[\s\S]*?~~~/g, ' ')
+    .replace(/`[^`]*`/g, ' ')
+    .replace(/!?\[\[[^\]]+\]\]/g, ' ')
+    .replace(/!?\[[^\]]*\]\([^)]+\)/g, ' ');
+
+const escapeRegExp = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const excerptAround = (content, index, length) => {
+  const start = Math.max(0, index - 54);
+  const end = Math.min(content.length, index + length + 72);
+  const prefix = start > 0 ? '...' : '';
+  const suffix = end < content.length ? '...' : '';
+  return `${prefix}${content.slice(start, end).replace(/\s+/g, ' ').trim()}${suffix}`;
+};
+
+const indexNoteWithStatements = (note, notes, linkStmt, mentionStmt) => {
+  const titleToNote = new Map();
+  (notes || []).forEach((candidate) => titleToNote.set(normalizeTitle(candidate.title), candidate));
+
+  const linkedTargets = new Set();
+  parseWikiLinks(note.content).forEach((link) => {
+    const target = titleToNote.get(link.targetNormalized);
+    linkedTargets.add(link.targetNormalized);
+    linkStmt.run(note.id, link.targetTitle, link.targetNormalized, target?.id || null, link.raw);
+  });
+
+  const searchable = stripCodeAndLinks(note.content);
+  (notes || []).forEach((target) => {
+    if (target.id === note.id) return;
+    const normalized = normalizeTitle(target.title);
+    if (!normalized || linkedTargets.has(normalized)) return;
+
+    const title = displayWikiTarget(target.title);
+    if (title.length < 2) return;
+    const pattern = escapeRegExp(title).replace(/\s+/g, '\\s+');
+    const hasWordEdges = /^[\w\s-]+$/.test(title);
+    const re = hasWordEdges
+      ? new RegExp(`(^|[^\\p{L}\\p{N}_])(${pattern})(?=$|[^\\p{L}\\p{N}_])`, 'giu')
+      : new RegExp(`(${pattern})`, 'giu');
+    let count = 0;
+    let firstIndex = -1;
+    let match;
+    while ((match = re.exec(searchable))) {
+      count += 1;
+      if (firstIndex === -1) firstIndex = match.index;
+    }
+    if (count > 0) {
+      mentionStmt.run(note.id, target.id, normalized, count, excerptAround(searchable, firstIndex, title.length));
+    }
+  });
+};
+
+const rebuildAllNoteIndexes = () => {
+  db.all('SELECT * FROM notes', (err, notes) => {
+    if (err) {
+      console.warn('⚠ Could not rebuild note indexes:', err.message);
+      return;
+    }
+
+    db.serialize(() => {
+      db.run('DELETE FROM note_links');
+      db.run('DELETE FROM note_mentions');
+
+      const linkStmt = db.prepare(
+        `INSERT INTO note_links (sourceNoteId, targetTitle, targetNormalized, targetNoteId, raw)
+         VALUES (?, ?, ?, ?, ?)`
+      );
+      const mentionStmt = db.prepare(
+        `INSERT INTO note_mentions (sourceNoteId, targetNoteId, targetNormalized, count, excerpt)
+         VALUES (?, ?, ?, ?, ?)`
+      );
+
+      (notes || []).forEach((note) => {
+        indexNoteWithStatements(note, notes, linkStmt, mentionStmt);
+      });
+
+      linkStmt.finalize();
+      mentionStmt.finalize();
+    });
+  });
+};
+
+const refreshNoteIndex = (noteId, cb) => {
+  db.all('SELECT * FROM notes', (err, notes) => {
+    if (err) {
+      console.warn('⚠ Could not refresh note index:', err.message);
+      if (cb) cb(err);
+      return;
+    }
+    const note = (notes || []).find((candidate) => String(candidate.id) === String(noteId));
+    if (!note) {
+      if (cb) cb();
+      return;
+    }
+
+    db.serialize(() => {
+      db.run('DELETE FROM note_links WHERE sourceNoteId = ?', [noteId], (linkDeleteErr) => {
+        if (linkDeleteErr) console.warn('⚠ Could not clear note links:', linkDeleteErr.message);
+        db.run('DELETE FROM note_mentions WHERE sourceNoteId = ?', [noteId], (mentionDeleteErr) => {
+          if (mentionDeleteErr) console.warn('⚠ Could not clear note mentions:', mentionDeleteErr.message);
+
+          const linkStmt = db.prepare(
+            `INSERT INTO note_links (sourceNoteId, targetTitle, targetNormalized, targetNoteId, raw)
+             VALUES (?, ?, ?, ?, ?)`
+          );
+          const mentionStmt = db.prepare(
+            `INSERT INTO note_mentions (sourceNoteId, targetNoteId, targetNormalized, count, excerpt)
+             VALUES (?, ?, ?, ?, ?)`
+          );
+
+          indexNoteWithStatements(note, notes, linkStmt, mentionStmt);
+          linkStmt.finalize();
+          mentionStmt.finalize((finalizeErr) => {
+            if (finalizeErr) console.warn('⚠ Could not finalize note index refresh:', finalizeErr.message);
+            if (cb) cb(finalizeErr || mentionDeleteErr || linkDeleteErr || null);
+          });
+        });
+      });
+    });
+  });
+};
+
+const createNoteVersion = (note, cb) => {
+  if (!note) return cb && cb();
+  db.run(
+    `INSERT INTO note_versions (noteId, title, content, folderId, revision)
+     VALUES (?, ?, ?, ?, ?)`,
+    [note.id, note.title, note.content || '', note.folderId || null, note.revision || 1],
+    (err) => {
+      if (err) console.warn('⚠ Could not snapshot note version:', err.message);
+      if (cb) cb();
+    }
+  );
+};
+
 // Notes
 app.get('/api/notes', (req, res) => {
-  db.all('SELECT * FROM notes ORDER BY createdAt DESC', (err, rows) => {
+  const limit = Math.min(parseInt(req.query.limit, 10) || 1000, 2000);
+  const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
+  const q = String(req.query.q || '').trim();
+  const folderId = req.query.folderId;
+  const sort = req.query.sort === 'updated' ? 'updatedAt' : 'createdAt';
+  const where = [];
+  const params = [];
+
+  if (q) {
+    where.push('(title LIKE ? OR content LIKE ?)');
+    params.push(`%${q}%`, `%${q}%`);
+  }
+  if (folderId) {
+    where.push('folderId = ?');
+    params.push(folderId);
+  }
+
+  params.push(limit, offset);
+  const sql = `
+    SELECT * FROM notes
+    ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+    ORDER BY pinned DESC, ${sort} DESC
+    LIMIT ? OFFSET ?
+  `;
+
+  db.all(sql, params, (err, rows) => {
     if (err) {
       console.error('Error fetching notes:', err);
       return res.status(500).json({ error: 'Failed to fetch notes' });
     }
-    res.json(rows || []);
+    res.json((rows || []).map(mapNoteRow));
   });
 });
 
@@ -304,7 +602,7 @@ app.get('/api/notes/folder/:folderId', (req, res) => {
       console.error('Error fetching notes by folder:', err);
       return res.status(500).json({ error: 'Failed to fetch notes' });
     }
-    res.json(rows || []);
+    res.json((rows || []).map(mapNoteRow));
   });
 });
 
@@ -316,35 +614,180 @@ app.get('/api/notes/:id', (req, res) => {
       return res.status(500).json({ error: 'Failed to fetch note' });
     }
     if (!row) return res.status(404).json({ error: 'Note not found' });
-    res.json(row);
+    res.json(mapNoteRow(row));
+  });
+});
+
+app.post('/api/notes/:id/view', (req, res) => {
+  db.run('UPDATE notes SET lastViewedAt = CURRENT_TIMESTAMP WHERE id = ?', [req.params.id], function(err) {
+    if (err) return res.status(500).json({ error: 'Failed to mark note viewed' });
+    res.json({ success: true });
+  });
+});
+
+app.get('/api/notes/:id/references', (req, res) => {
+  const noteId = req.params.id;
+  const response = {
+    backlinks: [],
+    outgoingLinks: [],
+    missingLinks: [],
+    unlinkedMentions: [],
+  };
+
+  db.all(
+    `SELECT nl.*, n.id, n.title, n.content, n.folderId, n.updatedAt
+     FROM note_links nl
+     LEFT JOIN notes n ON n.id = nl.targetNoteId
+     WHERE nl.sourceNoteId = ?
+     ORDER BY nl.targetTitle COLLATE NOCASE ASC`,
+    [noteId],
+    (outErr, outgoingRows) => {
+      if (outErr) return res.status(500).json({ error: 'Failed to fetch outgoing links' });
+      response.outgoingLinks = (outgoingRows || []).filter((row) => row.targetNoteId).map((row) => ({
+        target: row.targetTitle,
+        type: 'note',
+        note: mapNoteRow(row),
+      }));
+      response.missingLinks = (outgoingRows || []).filter((row) => !row.targetNoteId).map((row) => ({
+        target: row.targetTitle,
+        type: 'missing',
+      }));
+
+      db.all(
+        `SELECT n.*
+         FROM note_links nl
+         JOIN notes n ON n.id = nl.sourceNoteId
+         WHERE nl.targetNoteId = ?
+         ORDER BY n.updatedAt DESC`,
+        [noteId],
+        (backErr, backlinkRows) => {
+          if (backErr) return res.status(500).json({ error: 'Failed to fetch backlinks' });
+          response.backlinks = (backlinkRows || []).map(mapNoteRow);
+
+          db.all(
+            `SELECT nm.count, nm.excerpt, n.*
+             FROM note_mentions nm
+             JOIN notes n ON n.id = nm.sourceNoteId
+             WHERE nm.targetNoteId = ?
+             ORDER BY nm.count DESC, n.title COLLATE NOCASE ASC`,
+            [noteId],
+            (mentionErr, mentionRows) => {
+              if (mentionErr) return res.status(500).json({ error: 'Failed to fetch mentions' });
+              response.unlinkedMentions = (mentionRows || []).map((row) => ({
+                count: row.count,
+                excerpt: row.excerpt,
+                note: mapNoteRow(row),
+              }));
+              res.json(response);
+            }
+          );
+        }
+      );
+    }
+  );
+});
+
+app.get('/api/graph', (req, res) => {
+  db.all('SELECT * FROM notes ORDER BY updatedAt DESC', (noteErr, notes) => {
+    if (noteErr) return res.status(500).json({ error: 'Failed to fetch graph notes' });
+    db.all('SELECT sourceNoteId, targetNoteId, targetTitle, targetNormalized FROM note_links', (linkErr, links) => {
+      if (linkErr) return res.status(500).json({ error: 'Failed to fetch graph links' });
+      res.json({
+        notes: (notes || []).map(mapNoteRow),
+        links: links || [],
+      });
+    });
+  });
+});
+
+app.get('/api/notes/:id/versions', (req, res) => {
+  db.all(
+    'SELECT * FROM note_versions WHERE noteId = ? ORDER BY savedAt DESC LIMIT 50',
+    [req.params.id],
+    (err, rows) => {
+      if (err) return res.status(500).json({ error: 'Failed to fetch note versions' });
+      res.json(rows || []);
+    }
+  );
+});
+
+app.post('/api/notes/:id/restore/:versionId', (req, res) => {
+  db.get('SELECT * FROM notes WHERE id = ?', [req.params.id], (err, current) => {
+    if (err) return res.status(500).json({ error: 'Failed to fetch current note' });
+    if (!current) return res.status(404).json({ error: 'Note not found' });
+
+    db.get('SELECT * FROM note_versions WHERE id = ? AND noteId = ?', [req.params.versionId, req.params.id], (err2, version) => {
+      if (err2) return res.status(500).json({ error: 'Failed to fetch note version' });
+      if (!version) return res.status(404).json({ error: 'Version not found' });
+
+      createNoteVersion(current, () => {
+        db.run(
+          `UPDATE notes
+           SET title = ?, content = ?, folderId = ?, revision = COALESCE(revision, 1) + 1, updatedAt = CURRENT_TIMESTAMP
+           WHERE id = ?`,
+          [version.title, version.content || '', version.folderId || null, req.params.id],
+          function(updateErr) {
+            if (updateErr) return res.status(500).json({ error: 'Failed to restore note version' });
+            db.get('SELECT * FROM notes WHERE id = ?', [req.params.id], (fetchErr, row) => {
+              if (fetchErr) return res.status(500).json({ error: 'Failed to fetch restored note' });
+              if (normalizeTitle(current.title) !== normalizeTitle(row.title)) {
+                rebuildAllNoteIndexes();
+              } else {
+                refreshNoteIndex(req.params.id);
+              }
+              res.json(mapNoteRow(row));
+            });
+          }
+        );
+      });
+    });
   });
 });
 
 // Update note
 app.put('/api/notes/:id', (req, res) => {
-  const { title, content, folderId } = req.body;
-  const updates = [];
-  const values = [];
-  if (title !== undefined) { updates.push('title = ?'); values.push(title); }
-  if (content !== undefined) { updates.push('content = ?'); values.push(content); }
-  if (folderId !== undefined) { updates.push('folderId = ?'); values.push(folderId); }
-  if (updates.length === 0) return res.status(400).json({ error: 'No fields to update' });
-  updates.push('updatedAt = CURRENT_TIMESTAMP');
-  values.push(req.params.id);
-
-  const sql = `UPDATE notes SET ${updates.join(', ')} WHERE id = ?`;
-  db.run(sql, values, function(err) {
+  const { title, content, folderId, pinned, clientUpdatedAt } = req.body;
+  db.get('SELECT * FROM notes WHERE id = ?', [req.params.id], (err, current) => {
     if (err) {
-      console.error('Error updating note:', err);
+      console.error('Error fetching note before update:', err);
       return res.status(500).json({ error: 'Failed to update note' });
     }
-    // return updated row
-    db.get('SELECT * FROM notes WHERE id = ?', [req.params.id], (err2, row) => {
-      if (err2) {
-        console.error('Error fetching updated note:', err2);
-        return res.status(500).json({ error: 'Failed to fetch updated note' });
-      }
-      res.json(row);
+    if (!current) return res.status(404).json({ error: 'Note not found' });
+    if (clientUpdatedAt && current.updatedAt && String(clientUpdatedAt) !== String(current.updatedAt)) {
+      return res.status(409).json({ error: 'Note changed in another window', current: mapNoteRow(current) });
+    }
+
+    const updates = [];
+    const values = [];
+    if (title !== undefined) { updates.push('title = ?'); values.push(title); }
+    if (content !== undefined) { updates.push('content = ?'); values.push(content); }
+    if (folderId !== undefined) { updates.push('folderId = ?'); values.push(folderId); }
+    if (pinned !== undefined) { updates.push('pinned = ?'); values.push(pinned ? 1 : 0); }
+    if (updates.length === 0) return res.status(400).json({ error: 'No fields to update' });
+    updates.push('revision = COALESCE(revision, 1) + 1');
+    updates.push('updatedAt = CURRENT_TIMESTAMP');
+    values.push(req.params.id);
+
+    createNoteVersion(current, () => {
+      const sql = `UPDATE notes SET ${updates.join(', ')} WHERE id = ?`;
+      db.run(sql, values, function(updateErr) {
+        if (updateErr) {
+          console.error('Error updating note:', updateErr);
+          return res.status(500).json({ error: 'Failed to update note' });
+        }
+        db.get('SELECT * FROM notes WHERE id = ?', [req.params.id], (err2, row) => {
+          if (err2) {
+            console.error('Error fetching updated note:', err2);
+            return res.status(500).json({ error: 'Failed to fetch updated note' });
+          }
+          if (title !== undefined && normalizeTitle(title) !== normalizeTitle(current.title)) {
+            rebuildAllNoteIndexes();
+          } else if (content !== undefined) {
+            refreshNoteIndex(req.params.id);
+          }
+          res.json(mapNoteRow(row));
+        });
+      });
     });
   });
 });
@@ -361,16 +804,20 @@ app.delete('/api/notes/:id', (req, res) => {
 });
 
 app.post('/api/notes', (req, res) => {
-  const { title, content, folderId } = req.body;
+  const { title, content, folderId, pinned } = req.body;
   db.run(
-    'INSERT INTO notes (title, content, folderId) VALUES (?, ?, ?)',
-    [title, content, folderId || null],
+    'INSERT INTO notes (title, content, folderId, pinned) VALUES (?, ?, ?, ?)',
+    [title, content, folderId || null, pinned ? 1 : 0],
     function(err) {
       if (err) {
         console.error('Error creating note:', err);
         return res.status(500).json({ error: 'Failed to create note' });
       }
-      res.status(201).json({ id: this.lastID, title, content, folderId });
+      db.get('SELECT * FROM notes WHERE id = ?', [this.lastID], (err2, row) => {
+        if (err2) return res.status(500).json({ error: 'Failed to fetch created note' });
+        rebuildAllNoteIndexes();
+        res.status(201).json(mapNoteRow(row));
+      });
     }
   );
 });
@@ -467,12 +914,35 @@ app.delete('/api/folders/:id', (req, res) => {
 
 // History
 app.get('/api/history', (req, res) => {
-  db.all('SELECT * FROM history ORDER BY createdAt DESC LIMIT 100', (err, rows) => {
+  db.all('SELECT * FROM history ORDER BY createdAt DESC LIMIT 500', (err, rows) => {
     if (err) {
       console.error('Error fetching history:', err);
       return res.status(500).json({ error: 'Failed to fetch history' });
     }
     res.json(rows || []);
+  });
+});
+
+app.get('/api/history/activity', (req, res) => {
+  const sql = `
+    SELECT date, startTime, endTime, duration
+    FROM history
+    WHERE action = 'focus_session' AND date IS NOT NULL
+    ORDER BY date DESC, createdAt DESC
+  `;
+
+  db.all(sql, (err, rows) => {
+    if (err) {
+      console.error('Error fetching activity history:', err);
+      return res.status(500).json({ error: 'Failed to fetch activity history' });
+    }
+
+    res.json((rows || []).map((row) => ({
+      date: row.date,
+      start: row.startTime || '00:00',
+      end: row.endTime || '00:00',
+      duration: row.duration || 0,
+    })));
   });
 });
 
@@ -493,7 +963,7 @@ app.post('/api/history', (req, res) => {
   const { action, details, duration, startTime, endTime } = req.body;
 
   const now = new Date();
-  const dateKey = now.toISOString().split('T')[0]; // YYYY-MM-DD
+  const dateKey = req.body.date || now.toISOString().split('T')[0]; // YYYY-MM-DD
   const dataPayload = JSON.stringify({
     details,
     duration,

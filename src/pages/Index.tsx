@@ -15,6 +15,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { ActiveTimerIndicator } from "@/components/ActiveTimerIndicator";
 import { Button } from "@/components/ui/button";
+import { HelpCircle } from "lucide-react";
 
 const IndexContent = () => {
   const navigate = useNavigate();
@@ -78,6 +79,9 @@ const IndexContent = () => {
             Built with intention. Stay focused.
           </p>
           <div className="flex items-center gap-2">
+            <Button variant="ghost" size="icon" onClick={() => navigate("/help")} title="Help">
+              <HelpCircle className="h-5 w-5" />
+            </Button>
             <ThemeToggle />
             <KeyboardShortcutsButton onClick={() => setShortcutsOpen(true)} />
           </div>

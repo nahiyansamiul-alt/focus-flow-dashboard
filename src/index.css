@@ -502,3 +502,13 @@
 .prose hr {
   @apply border-border my-6;
 }
+
+.sidebar-scroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.sidebar-scroll::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
