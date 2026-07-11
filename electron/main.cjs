@@ -11,6 +11,46 @@ const API_PORT = 5000;
 let isDev = true;
 let mainWindow;
 let backendProcess;
+let updateReadyToInstall = false;
+let updateCheckPromise = null;
+
+function autoUpdatesSupported() {
+  const isPortableWindowsBuild = Boolean(
+    process.env.PORTABLE_EXECUTABLE_DIR || process.env.PORTABLE_EXECUTABLE_FILE
+  );
+  return app.isPackaged && !isPortableWindowsBuild;
+}
+
+function sendUpdateEvent(channel, payload) {
+  if (
+    mainWindow &&
+    !mainWindow.isDestroyed() &&
+    !mainWindow.webContents.isDestroyed()
+  ) {
+    mainWindow.webContents.send(channel, payload);
+  }
+}
+
+function updatePayload(info) {
+  return {
+    version: typeof info?.version === 'string' ? info.version : null,
+  };
+}
+
+// Register listeners before the renderer can request its first update check.
+autoUpdater.on('update-available', (info) => {
+  sendUpdateEvent('updates:available', updatePayload(info));
+});
+
+autoUpdater.on('update-downloaded', (info) => {
+  updateReadyToInstall = true;
+  sendUpdateEvent('updates:downloaded', updatePayload(info));
+});
+
+autoUpdater.on('error', (error) => {
+  console.error('Update error:', error);
+  sendUpdateEvent('updates:error', { message: 'Unable to check for updates.' });
+});
 
 function addModuleLookupPaths(paths) {
   const Module = require('module');
@@ -279,28 +319,6 @@ app.on('ready', async () => {
   console.log('  - process.resourcesPath:', process.resourcesPath);
   console.log('  - app.getAppPath():', app.getAppPath());
 
-  // Configure auto-updater (only in production/packaged)
-  if (!isDev) {
-    autoUpdater.checkForUpdatesAndNotify();
-
-    // Listen for update events
-    autoUpdater.on('update-available', () => {
-      if (mainWindow) {
-        mainWindow.webContents.send('update-available');
-      }
-    });
-
-    autoUpdater.on('update-downloaded', () => {
-      if (mainWindow) {
-        mainWindow.webContents.send('update-downloaded');
-      }
-    });
-
-    autoUpdater.on('error', (error) => {
-      console.error('Update error:', error);
-    });
-  }
-
   // Start backend
   await startBackend();
 
@@ -351,13 +369,39 @@ ipcMain.handle('window-maximize', () => {
 });
 ipcMain.handle('window-close', () => mainWindow?.close());
 
-// Update IPC handlers
-ipcMain.handle('install-update', () => {
-  autoUpdater.quitAndInstall();
+// Update IPC handlers. Checks are initiated by the renderer only after it subscribes.
+ipcMain.handle('updates:install', () => {
+  if (!autoUpdatesSupported()) {
+    return { ok: false, status: 'disabled' };
+  }
+
+  if (!updateReadyToInstall) {
+    return { ok: false, status: 'not-ready' };
+  }
+
+  setImmediate(() => autoUpdater.quitAndInstall());
+  return { ok: true, status: 'installing' };
 });
 
-ipcMain.handle('check-for-updates', async () => {
-  return await autoUpdater.checkForUpdates();
+ipcMain.handle('updates:check', async () => {
+  if (!autoUpdatesSupported()) {
+    return { ok: false, status: 'disabled' };
+  }
+
+  if (!updateCheckPromise) {
+    updateCheckPromise = autoUpdater
+      .checkForUpdatesAndNotify()
+      .then(() => ({ ok: true, status: 'checked' }))
+      .catch((error) => {
+        console.error('Update check failed:', error);
+        return { ok: false, status: 'error', message: 'Unable to check for updates.' };
+      })
+      .finally(() => {
+        updateCheckPromise = null;
+      });
+  }
+
+  return updateCheckPromise;
 });
 
 module.exports = { mainWindow };

@@ -24,8 +24,9 @@
   "afterPack": "scripts/after-pack.cjs",
   "publish": {
     "provider": "github",
-    "owner": "your-username",
-    "repo": "focus-flow-dashboard"
+    "owner": "CWE-119",
+    "repo": "focus-flow-dashboard",
+    "releaseType": "draft"
   },
   "win": {
     "target": [
@@ -42,8 +43,7 @@
         ]
       }
     ],
-    "icon": "public/FucosFlow.ico",
-    "signAndEditExecutable": false
+    "icon": "public/FucosFlow.ico"
   },
   "nsis": {
     "oneClick": false,

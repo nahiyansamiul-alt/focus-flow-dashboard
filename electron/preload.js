@@ -1,5 +1,11 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
+function onUpdate(channel, listener) {
+  const handler = (_event, updateInfo) => listener(updateInfo);
+  ipcRenderer.on(channel, handler);
+  return () => ipcRenderer.removeListener(channel, handler);
+}
+
 // Expose safe API to renderer process
 contextBridge.exposeInMainWorld('electron', {
   // Get API URL from main process
@@ -8,11 +14,13 @@ contextBridge.exposeInMainWorld('electron', {
   // Get app version
   getVersion: () => ipcRenderer.invoke('get-version'),
   
-  // IPC methods for updates
-  ipcRenderer: {
-    on: (channel, listener) => ipcRenderer.on(channel, listener),
-    removeListener: (channel, listener) => ipcRenderer.removeListener(channel, listener),
-    invoke: (channel, ...args) => ipcRenderer.invoke(channel, ...args),
+  // Narrow update API; renderer code cannot invoke or subscribe to arbitrary IPC channels.
+  updates: {
+    check: () => ipcRenderer.invoke('updates:check'),
+    install: () => ipcRenderer.invoke('updates:install'),
+    onAvailable: (listener) => onUpdate('updates:available', listener),
+    onDownloaded: (listener) => onUpdate('updates:downloaded', listener),
+    onError: (listener) => onUpdate('updates:error', listener),
   },
   
   // Desktop audio capture (system audio)
