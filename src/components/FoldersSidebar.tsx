@@ -100,19 +100,25 @@ const FoldersSidebar = () => {
     return counts;
   }, [notes]);
 
+  const displayFolders = useMemo(() => {
+    const q = folderQuery.trim().toLowerCase();
+    if (!q) return folders;
+    return folders.filter((f) => f.name.toLowerCase().includes(q));
+  }, [folders, folderQuery]);
+
   const visibleFolders = useMemo(() => {
     const viewportHeight = 760;
     const startIndex = Math.max(0, Math.floor(scrollTop / FOLDER_ROW_HEIGHT) - FOLDER_OVERSCAN);
     const endIndex = Math.min(
-      folders.length,
+      displayFolders.length,
       Math.ceil((scrollTop + viewportHeight) / FOLDER_ROW_HEIGHT) + FOLDER_OVERSCAN
     );
 
-    return folders.slice(startIndex, endIndex).map((folder, offset) => ({
+    return displayFolders.slice(startIndex, endIndex).map((folder, offset) => ({
       folder,
       index: startIndex + offset,
     }));
-  }, [folders, scrollTop]);
+  }, [displayFolders, scrollTop]);
 
   const handleFolderClick = (folderId: string) => {
     selectFolder(folderId);
