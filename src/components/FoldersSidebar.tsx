@@ -10,7 +10,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Plus, Edit2, Trash2, Check, X } from "lucide-react";
+import { Plus, Edit2, Trash2, Check, X, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "motion/react";
 import { getFolderId, getNoteFolderId } from "@/lib/note-links";
@@ -88,6 +88,7 @@ const FoldersSidebar = () => {
   const [editingName, setEditingName] = useState("");
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [scrollTop, setScrollTop] = useState(0);
+  const [folderQuery, setFolderQuery] = useState("");
 
   const noteCountsByFolder = useMemo(() => {
     const counts = new Map<string, number>();
@@ -99,19 +100,25 @@ const FoldersSidebar = () => {
     return counts;
   }, [notes]);
 
+  const displayFolders = useMemo(() => {
+    const q = folderQuery.trim().toLowerCase();
+    if (!q) return folders;
+    return folders.filter((f) => f.name.toLowerCase().includes(q));
+  }, [folders, folderQuery]);
+
   const visibleFolders = useMemo(() => {
     const viewportHeight = 760;
     const startIndex = Math.max(0, Math.floor(scrollTop / FOLDER_ROW_HEIGHT) - FOLDER_OVERSCAN);
     const endIndex = Math.min(
-      folders.length,
+      displayFolders.length,
       Math.ceil((scrollTop + viewportHeight) / FOLDER_ROW_HEIGHT) + FOLDER_OVERSCAN
     );
 
-    return folders.slice(startIndex, endIndex).map((folder, offset) => ({
+    return displayFolders.slice(startIndex, endIndex).map((folder, offset) => ({
       folder,
       index: startIndex + offset,
     }));
-  }, [folders, scrollTop]);
+  }, [displayFolders, scrollTop]);
 
   const handleFolderClick = (folderId: string) => {
     selectFolder(folderId);
@@ -144,8 +151,13 @@ const FoldersSidebar = () => {
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="font-display font-semibold text-lg">Folders</h3>
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <h3 className="font-display font-semibold text-lg">Folders</h3>
+          <p className="text-[11px] text-muted-foreground">
+            {folders.length} {folders.length === 1 ? "folder" : "folders"}
+          </p>
+        </div>
         <Button
           variant="ghost"
           size="icon"
@@ -156,13 +168,24 @@ const FoldersSidebar = () => {
         </Button>
       </div>
 
+      {/* Search */}
+      <div className="relative mb-2">
+        <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+        <Input
+          value={folderQuery}
+          onChange={(e) => setFolderQuery(e.target.value)}
+          placeholder="Filter folders..."
+          className="h-8 text-xs pl-8"
+        />
+      </div>
+
       <div
-        className="sidebar-scroll flex-1 overflow-y-auto overscroll-contain pt-2 pr-1"
+        className="sidebar-scroll flex-1 overflow-y-auto overscroll-contain pt-1 pr-1"
         onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
       >
         <div
           className="relative"
-          style={{ height: folders.length * FOLDER_ROW_HEIGHT }}
+          style={{ height: displayFolders.length * FOLDER_ROW_HEIGHT }}
         >
           <AnimatePresence mode="popLayout">
             {visibleFolders.map(({ folder, index }) => {

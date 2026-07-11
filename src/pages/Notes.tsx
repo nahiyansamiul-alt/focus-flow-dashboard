@@ -7,7 +7,7 @@ import NotesList from "@/components/NotesList";
 import MarkdownEditor from "@/components/MarkdownEditor";
 import GraphView from "@/components/GraphView";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, FileText, Plus, FolderClosed, List, PenTool, Network, Download, Upload, HelpCircle, Search, CalendarDays, LayoutTemplate, Pin, Clock } from "lucide-react";
+import { ArrowLeft, FileText, Plus, FolderClosed, List, PenTool, Network, Download, Upload, HelpCircle, Search, CalendarDays, LayoutTemplate, Pin, Clock, MoreHorizontal } from "lucide-react";
 import {
   CommandDialog,
   CommandEmpty,
@@ -16,6 +16,14 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { ActiveTimerIndicator } from "@/components/ActiveTimerIndicator";
@@ -278,69 +286,71 @@ const NotesContent = () => {
           onChange={(event) => handleImportVault(event.target.files)}
           {...({ webkitdirectory: "true", directory: "true" } as any)}
         />
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setCommandOpen(true)}
-          title="Search notes"
-        >
-          <Search className="w-5 h-5" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={createDailyNote}
-          title="Daily note"
-        >
-          <CalendarDays className="w-5 h-5" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => importInputRef.current?.click()}
-          title="Import Markdown folder"
-        >
-          <Upload className="w-5 h-5" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={handleExportVault}
-          title="Export Markdown folder"
-        >
-          <Download className="w-5 h-5" />
-        </Button>
-        <Button
-          variant={isGraphView ? "default" : "ghost"}
-          size="icon"
-          onClick={() => setIsGraphView(prev => !prev)}
-          title={isGraphView ? "Show editor" : "Graph view"}
-        >
-          <Network className="w-5 h-5" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => navigate("/canvas")}
-          title="Canvas"
-        >
-          <PenTool className="w-5 h-5" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => navigate("/help")}
-          title="Help"
-        >
-          <HelpCircle className="w-5 h-5" />
-        </Button>
+        {/* Primary actions */}
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setCommandOpen(true)}
+            title="Search notes (⌘K)"
+          >
+            <Search className="w-5 h-5" />
+          </Button>
+          <Button
+            variant={isGraphView ? "default" : "ghost"}
+            size="icon"
+            onClick={() => setIsGraphView(prev => !prev)}
+            title={isGraphView ? "Show editor" : "Graph view"}
+          >
+            <Network className="w-5 h-5" />
+          </Button>
+        </div>
+
+        <div className="w-px h-6 bg-border mx-1" />
+
+        {/* Secondary actions grouped in a menu */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" title="More">
+              <MoreHorizontal className="w-5 h-5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-52">
+            <DropdownMenuLabel>Create</DropdownMenuLabel>
+            <DropdownMenuItem onClick={createDailyNote}>
+              <CalendarDays className="w-4 h-4 mr-2" />
+              Daily note
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel>Vault</DropdownMenuLabel>
+            <DropdownMenuItem onClick={() => importInputRef.current?.click()}>
+              <Upload className="w-4 h-4 mr-2" />
+              Import markdown…
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={handleExportVault}>
+              <Download className="w-4 h-4 mr-2" />
+              Export markdown…
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel>Tools</DropdownMenuLabel>
+            <DropdownMenuItem onClick={() => navigate("/canvas")}>
+              <PenTool className="w-4 h-4 mr-2" />
+              Canvas
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => navigate("/help")}>
+              <HelpCircle className="w-4 h-4 mr-2" />
+              Help
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
         <ThemeToggle />
         {selectedFolderId && (
           <Button
             variant="outline"
             size="sm"
             onClick={handleCreateNote}
-            className="gap-2"
+            className="gap-2 ml-1"
           >
             <Plus className="w-4 h-4" />
             New Note
@@ -430,10 +440,23 @@ const NotesContent = () => {
                 onTitleChange={(title) => updateNote(getNoteId(selectedNote), { title })}
               />
             ) : (
-              <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
-                <FileText className="w-16 h-16 mb-4 opacity-50" />
-                <p className="text-lg font-body">Select a note to start editing</p>
-                <p className="text-sm mt-2">Or create a new one from a folder</p>
+              <div className="h-full flex flex-col items-center justify-center text-muted-foreground max-w-md mx-auto text-center px-6">
+                <FileText className="w-16 h-16 mb-4 opacity-40" />
+                <p className="text-lg font-body font-medium text-foreground">No note selected</p>
+                <p className="text-sm mt-1">Pick a folder, choose a note, or start something new.</p>
+                <div className="flex items-center gap-2 mt-6">
+                  <Button variant="outline" size="sm" onClick={() => setCommandOpen(true)} className="gap-2">
+                    <Search className="w-4 h-4" /> Search (⌘K)
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={createDailyNote} className="gap-2">
+                    <CalendarDays className="w-4 h-4" /> Daily note
+                  </Button>
+                  {selectedFolderId && (
+                    <Button size="sm" onClick={handleCreateNote} className="gap-2">
+                      <Plus className="w-4 h-4" /> New note
+                    </Button>
+                  )}
+                </div>
               </div>
             )}
           </main>
