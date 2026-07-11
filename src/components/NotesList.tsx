@@ -1,119 +1,147 @@
-import { useMemo, useRef, useState, forwardRef } from "react";
-import { motion, AnimatePresence, useInView } from "motion/react";
+import { useMemo, useState, forwardRef, useRef } from "react";
+import { motion, AnimatePresence } from "motion/react";
 import { useNotes } from "@/contexts/NotesContext";
 import { Button } from "@/components/ui/button";
-import { Plus, FileText, Trash2 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Plus, FileText, Trash2, Pin, PinOff, Search, FolderOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getNoteFolderId, getNoteId } from "@/lib/note-links";
 
-interface AnimatedNoteItemProps {
-  noteId: string;
+interface NoteRowProps {
   title: string;
+  snippet: string;
+  updatedAt?: string | Date;
+  pinned?: boolean;
   isSelected: boolean;
   onClick: () => void;
   onDelete: () => void;
+  onTogglePin: () => void;
   index: number;
 }
 
-const AnimatedNoteItem = forwardRef<HTMLDivElement, AnimatedNoteItemProps>(
-  ({ noteId, title, isSelected, onClick, onDelete, index }, ref) => {
-    const localRef = useRef<HTMLDivElement>(null);
-    const inView = useInView(localRef, { amount: 0.5, once: true });
+const formatUpdated = (value?: string | Date) => {
+  if (!value) return "";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "";
+  const diff = Date.now() - d.getTime();
+  const day = 86400000;
+  if (diff < day && d.getDate() === new Date().getDate()) {
+    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  }
+  if (diff < 7 * day) {
+    return d.toLocaleDateString([], { weekday: "short" });
+  }
+  return d.toLocaleDateString([], { month: "short", day: "numeric" });
+};
 
-    // merge forwarded ref and localRef
-    const setRefs = (node: HTMLDivElement | null) => {
-      localRef.current = node;
-      if (!ref) return;
-      if (typeof ref === 'function') ref(node);
-      else if (ref) (ref as any).current = node;
-    };
+const stripMarkdown = (content: string) =>
+  content
+    .replace(/^#+\s+/gm, "")
+    .replace(/[*_`>#-]/g, "")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/\n+/g, " ")
+    .trim();
 
-    return (
+const NoteRow = forwardRef<HTMLDivElement, NoteRowProps>(
+  ({ title, snippet, updatedAt, pinned, isSelected, onClick, onDelete, onTogglePin, index }, ref) => (
     <motion.div
-      ref={setRefs}
+      ref={ref}
       layout
-      initial={{ scale: 0.8, opacity: 0, x: -20 }}
-      animate={inView ? { scale: 1, opacity: 1, x: 0 } : { scale: 0.8, opacity: 0, x: -20 }}
-      exit={{ scale: 0.8, opacity: 0, x: -50 }}
-      transition={{ 
-        duration: 0.2, 
-        delay: index * 0.03,
-        layout: { duration: 0.15 }
-      }}
+      initial={{ opacity: 0, y: 4 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -4 }}
+      transition={{ duration: 0.15, delay: Math.min(index * 0.015, 0.15) }}
       className={cn(
-        "group flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors",
-        isSelected ? "bg-primary text-primary-foreground" : "hover:bg-muted"
+        "group relative px-3 py-2 rounded-md cursor-pointer transition-colors border border-transparent",
+        isSelected
+          ? "bg-primary/10 border-primary/30"
+          : "hover:bg-muted/60"
       )}
       onClick={onClick}
     >
-      <FileText className="w-4 h-4 flex-shrink-0" />
-      <span className="flex-1 truncate text-sm font-body">{title}</span>
-      <Button
-        variant="ghost"
-        size="icon"
-        className={cn(
-          "h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity",
-          isSelected ? "hover:bg-primary-foreground/20" : ""
-        )}
-        onClick={(e) => {
-          e.stopPropagation();
-          onDelete();
-        }}
-      >
-        <Trash2 className="w-3 h-3" />
-      </Button>
+      <div className="flex items-start gap-2">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5">
+            {pinned && <Pin className="w-3 h-3 flex-shrink-0 text-primary fill-primary" />}
+            <span className="text-sm font-body font-medium truncate">{title || "Untitled"}</span>
+          </div>
+          {snippet && (
+            <p className="text-xs text-muted-foreground truncate mt-0.5">{snippet}</p>
+          )}
+          <span className="text-[10px] uppercase tracking-wide text-muted-foreground/70 mt-1 block">
+            {formatUpdated(updatedAt)}
+          </span>
+        </div>
+        <div className="flex flex-col gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6"
+            title={pinned ? "Unpin" : "Pin"}
+            onClick={(e) => {
+              e.stopPropagation();
+              onTogglePin();
+            }}
+          >
+            {pinned ? <PinOff className="w-3 h-3" /> : <Pin className="w-3 h-3" />}
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 text-destructive hover:text-destructive"
+            title="Delete"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete();
+            }}
+          >
+            <Trash2 className="w-3 h-3" />
+          </Button>
+        </div>
+      </div>
     </motion.div>
-    );
-  }
+  )
 );
-
-const NOTE_ROW_HEIGHT = 41;
-const NOTE_LIST_HEIGHT = 640;
-const NOTE_OVERSCAN = 8;
+NoteRow.displayName = "NoteRow";
 
 const NotesList = () => {
-  const { 
-    selectedFolderId, 
-    selectedNoteId, 
+  const {
+    selectedFolderId,
+    selectedNoteId,
     notes,
-    createNote, 
-    deleteNote, 
+    createNote,
+    deleteNote,
     selectNote,
-    getSelectedFolder
+    toggleNotePinned,
+    getSelectedFolder,
   } = useNotes();
 
   const folder = getSelectedFolder();
-  const [scrollTop, setScrollTop] = useState(0);
-  
-  // Filter notes by the selected folder's folderId
-  const filteredNotes = notes.filter(note => {
-    return getNoteFolderId(note) === String(selectedFolderId);
-  });
-  const visibleNotes = useMemo(() => {
-    const start = Math.max(0, Math.floor(scrollTop / NOTE_ROW_HEIGHT) - NOTE_OVERSCAN);
-    const count = Math.ceil(NOTE_LIST_HEIGHT / NOTE_ROW_HEIGHT) + NOTE_OVERSCAN * 2;
-    return {
-      start,
-      items: filteredNotes.slice(start, start + count),
-      before: start * NOTE_ROW_HEIGHT,
-      after: Math.max(0, (filteredNotes.length - start - count) * NOTE_ROW_HEIGHT),
-    };
-  }, [filteredNotes, scrollTop]);
+  const [query, setQuery] = useState("");
+  const listRef = useRef<HTMLDivElement>(null);
+
+  const filteredNotes = useMemo(() => {
+    const inFolder = notes.filter(
+      (note) => getNoteFolderId(note) === String(selectedFolderId)
+    );
+    const q = query.trim().toLowerCase();
+    if (!q) return inFolder;
+    return inFolder.filter(
+      (n) =>
+        n.title.toLowerCase().includes(q) ||
+        (n.content || "").toLowerCase().includes(q)
+    );
+  }, [notes, selectedFolderId, query]);
 
   const handleCreateNote = async () => {
-    if (selectedFolderId) {
-      await createNote("Untitled", "");
-    }
-  };
-
-  const handleDeleteNote = async (noteId: string) => {
-    await deleteNote(noteId);
+    if (selectedFolderId) await createNote("Untitled", "");
   };
 
   if (!selectedFolderId) {
     return (
-      <div className="h-full flex items-center justify-center text-muted-foreground text-sm">
-        Select a folder to view notes
+      <div className="h-full flex flex-col items-center justify-center text-muted-foreground text-sm px-4 text-center gap-2">
+        <FolderOpen className="w-8 h-8 opacity-40" />
+        <p>Select a folder to view notes</p>
       </div>
     );
   }
@@ -121,10 +149,15 @@ const NotesList = () => {
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="font-display font-semibold text-lg truncate">
-          {folder?.name || "Notes"}
-        </h3>
+      <div className="flex items-center justify-between mb-3">
+        <div className="min-w-0 flex-1">
+          <h3 className="font-display font-semibold text-lg truncate">
+            {folder?.name || "Notes"}
+          </h3>
+          <p className="text-[11px] text-muted-foreground">
+            {filteredNotes.length} {filteredNotes.length === 1 ? "note" : "notes"}
+          </p>
+        </div>
         <Button
           variant="ghost"
           size="icon"
@@ -135,37 +168,57 @@ const NotesList = () => {
         </Button>
       </div>
 
+      {/* Search */}
+      <div className="relative mb-3">
+        <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+        <Input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search notes..."
+          className="h-8 text-xs pl-8"
+        />
+      </div>
+
       {/* Notes List */}
       <div
-        className="sidebar-scroll flex-1 overflow-y-auto overscroll-contain pr-1"
-        onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
+        ref={listRef}
+        className="sidebar-scroll flex-1 overflow-y-auto overscroll-contain pr-1 -mr-1"
       >
-        <AnimatePresence>
+        <AnimatePresence mode="popLayout">
           {filteredNotes.length === 0 ? (
             <motion.div
+              key="empty"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="text-muted-foreground text-sm text-center py-8"
+              className="text-muted-foreground text-sm text-center py-8 flex flex-col items-center gap-2"
             >
-              No notes yet. Create one!
+              <FileText className="w-6 h-6 opacity-40" />
+              <span>{query ? "No matches" : "No notes yet"}</span>
+              {!query && (
+                <Button variant="outline" size="sm" onClick={handleCreateNote} className="mt-1 gap-1">
+                  <Plus className="w-3 h-3" /> New note
+                </Button>
+              )}
             </motion.div>
           ) : (
-            <div>
-              <div style={{ height: visibleNotes.before }} />
-              <div className="space-y-1">
-                {visibleNotes.items.map((note, index) => (
-                  <AnimatedNoteItem
-                    key={getNoteId(note)}
-                    noteId={getNoteId(note)}
+            <div className="space-y-1">
+              {filteredNotes.map((note, index) => {
+                const id = getNoteId(note);
+                return (
+                  <NoteRow
+                    key={id}
                     title={note.title}
-                    isSelected={getNoteId(note) === String(selectedNoteId)}
-                    onClick={() => selectNote(getNoteId(note) || null)}
-                    onDelete={() => handleDeleteNote(getNoteId(note))}
-                    index={visibleNotes.start + index}
+                    snippet={stripMarkdown(note.content || "").slice(0, 80)}
+                    updatedAt={(note as any).updatedAt}
+                    pinned={Boolean((note as any).pinned)}
+                    isSelected={id === String(selectedNoteId)}
+                    onClick={() => selectNote(id || null)}
+                    onDelete={() => deleteNote(id)}
+                    onTogglePin={() => toggleNotePinned(id, !(note as any).pinned)}
+                    index={index}
                   />
-                ))}
-              </div>
-              <div style={{ height: visibleNotes.after }} />
+                );
+              })}
             </div>
           )}
         </AnimatePresence>
