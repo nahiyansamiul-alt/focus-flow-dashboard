@@ -7,7 +7,7 @@ import NotesList from "@/components/NotesList";
 import MarkdownEditor from "@/components/MarkdownEditor";
 import GraphView from "@/components/GraphView";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, FileText, Plus, FolderClosed, List, PenTool, Network, Download, Upload, HelpCircle, Search, CalendarDays, LayoutTemplate, Pin, Clock } from "lucide-react";
+import { ArrowLeft, FileText, Plus, FolderClosed, List, PenTool, Network, Download, Upload, HelpCircle, Search, CalendarDays, LayoutTemplate, Pin, Clock, MoreHorizontal } from "lucide-react";
 import {
   CommandDialog,
   CommandEmpty,
@@ -16,6 +16,14 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { ActiveTimerIndicator } from "@/components/ActiveTimerIndicator";
