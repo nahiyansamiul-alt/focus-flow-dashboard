@@ -9,16 +9,24 @@
     "dist/**/*",
     "electron/**/*",
     "backend/**/*",
+    "!backend/node_modules/**/*",
+    "!backend/*.db",
+    "!backend/*.db-*",
+    "!backend/*.sqlite",
+    "!backend/*.sqlite-*",
     "node_modules/**/*",
     "package.json"
   ],
   "asarUnpack": [
-    "backend/**"
+    "backend/**",
+    "node_modules/sqlite3/**"
   ],
+  "afterPack": "scripts/after-pack.cjs",
   "publish": {
     "provider": "github",
-    "owner": "your-username",
-    "repo": "focus-flow-dashboard"
+    "owner": "CWE-119",
+    "repo": "focus-flow-dashboard",
+    "releaseType": "draft"
   },
   "win": {
     "target": [
@@ -35,8 +43,7 @@
         ]
       }
     ],
-    "icon": "public/FucosFlow.ico",
-    "signAndEditExecutable": false
+    "icon": "public/FucosFlow.ico"
   },
   "nsis": {
     "oneClick": false,

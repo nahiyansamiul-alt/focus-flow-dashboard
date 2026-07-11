@@ -31,6 +31,14 @@ const db = new sqlite3.Database(dbPath, (err) => {
 
   // Create tables if they don't exist
   const initSQL = `
+    CREATE TABLE IF NOT EXISTS categories (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      color TEXT NOT NULL,
+      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
     CREATE TABLE IF NOT EXISTS todos (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       title TEXT NOT NULL,
@@ -43,8 +51,10 @@ const db = new sqlite3.Database(dbPath, (err) => {
       repeatLimit INTEGER,
       repeatCount INTEGER DEFAULT 0,
       repeatEndDate TEXT,
+      categoryId TEXT,
       createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
+      updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (categoryId) REFERENCES categories(id) ON DELETE SET NULL
     );
 
     CREATE TABLE IF NOT EXISTS notes (
@@ -192,6 +202,7 @@ const db = new sqlite3.Database(dbPath, (err) => {
         'CREATE INDEX IF NOT EXISTS idx_history_date ON history(date)',
         'CREATE INDEX IF NOT EXISTS idx_history_action_date ON history(action, date)',
         'CREATE INDEX IF NOT EXISTS idx_history_createdAt ON history(createdAt)',
+        'CREATE INDEX IF NOT EXISTS idx_todos_categoryId ON todos(categoryId)',
         'CREATE INDEX IF NOT EXISTS idx_notes_folderId ON notes(folderId)',
         'CREATE INDEX IF NOT EXISTS idx_notes_updatedAt ON notes(updatedAt)',
         'CREATE INDEX IF NOT EXISTS idx_notes_title ON notes(title)',
@@ -202,10 +213,20 @@ const db = new sqlite3.Database(dbPath, (err) => {
         'CREATE INDEX IF NOT EXISTS idx_note_links_target_normalized ON note_links(targetNormalized)',
         'CREATE INDEX IF NOT EXISTS idx_note_mentions_source ON note_mentions(sourceNoteId)',
         'CREATE INDEX IF NOT EXISTS idx_note_mentions_target ON note_mentions(targetNoteId)',
+        `INSERT OR IGNORE INTO categories (id, name, color)
+         SELECT 'cat-work', 'Work', '#5ca8e0'
+         WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE id = '004_task_categories')
+         UNION ALL
+         SELECT 'cat-personal', 'Personal', '#9b7ed9'
+         WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE id = '004_task_categories')
+         UNION ALL
+         SELECT 'cat-study', 'Study', '#e09746'
+         WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE id = '004_task_categories')`,
         `INSERT OR IGNORE INTO schema_migrations (id) VALUES
          ('001_initial_runtime_schema'),
          ('002_notes_revision_pin_recent'),
-         ('003_note_link_indexes')`,
+         ('003_note_link_indexes'),
+         ('004_task_categories')`,
       ], () => {
         rebuildAllNoteIndexes();
         startServer();
@@ -274,7 +295,7 @@ const db = new sqlite3.Database(dbPath, (err) => {
             });
           }
 
-          // Ensure todos repeat/dueDate fields
+          // Ensure todos repeat/dueDate/category fields
           const todoColumns = [
             ['dueDate TEXT', 'dueDate'],
             ['repeatType TEXT', 'repeatType'],
@@ -283,6 +304,7 @@ const db = new sqlite3.Database(dbPath, (err) => {
             ['repeatLimit INTEGER', 'repeatLimit'],
             ['repeatCount INTEGER', 'repeatCount'],
             ['repeatEndDate TEXT', 'repeatEndDate'],
+            ['categoryId TEXT REFERENCES categories(id) ON DELETE SET NULL', 'categoryId'],
           ];
           let idx = 0;
           function ensureNextTodoCol() {
@@ -307,6 +329,169 @@ const db = new sqlite3.Database(dbPath, (err) => {
 
 // API Routes
 
+const CATEGORY_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/;
+const CATEGORY_COLOR_PATTERN = /^#[0-9A-Fa-f]{6}$/;
+
+function createCategoryId() {
+  return `cat-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function validateCategoryId(categoryId, res, done) {
+  if (categoryId === null || categoryId === '') {
+    done(null);
+    return;
+  }
+  if (typeof categoryId !== 'string' || !CATEGORY_ID_PATTERN.test(categoryId.trim())) {
+    res.status(400).json({ error: 'Invalid category id' });
+    return;
+  }
+
+  const normalizedId = categoryId.trim();
+  db.get('SELECT id FROM categories WHERE id = ?', [normalizedId], (err, row) => {
+    if (err) {
+      console.error('Error validating category:', err);
+      res.status(500).json({ error: 'Failed to validate category' });
+      return;
+    }
+    if (!row) {
+      res.status(400).json({ error: 'Category not found' });
+      return;
+    }
+    done(normalizedId);
+  });
+}
+
+// Task categories
+app.get('/api/categories', (_req, res) => {
+  const sql = `
+    SELECT * FROM categories
+    ORDER BY
+      CASE id
+        WHEN 'cat-work' THEN 0
+        WHEN 'cat-personal' THEN 1
+        WHEN 'cat-study' THEN 2
+        ELSE 3
+      END,
+      createdAt ASC,
+      name COLLATE NOCASE ASC
+  `;
+  db.all(sql, (err, rows) => {
+    if (err) {
+      console.error('Error fetching categories:', err);
+      return res.status(500).json({ error: 'Failed to fetch categories' });
+    }
+    res.json(rows || []);
+  });
+});
+
+app.post('/api/categories', (req, res) => {
+  const rawName = req.body.name;
+  const rawColor = req.body.color;
+  const rawId = req.body.id;
+  const name = typeof rawName === 'string' ? rawName.trim() : '';
+  const color = typeof rawColor === 'string' ? rawColor.trim() : '';
+  const id = rawId === undefined ? createCategoryId() : (typeof rawId === 'string' ? rawId.trim() : '');
+
+  if (!name || name.length > 80) {
+    return res.status(400).json({ error: 'Category name must be between 1 and 80 characters' });
+  }
+  if (!CATEGORY_COLOR_PATTERN.test(color)) {
+    return res.status(400).json({ error: 'Category color must be a six-digit hex value' });
+  }
+  if (!CATEGORY_ID_PATTERN.test(id)) {
+    return res.status(400).json({ error: 'Invalid category id' });
+  }
+
+  db.run(
+    'INSERT INTO categories (id, name, color) VALUES (?, ?, ?)',
+    [id, name, color],
+    function(err) {
+      if (err) {
+        if (err.code === 'SQLITE_CONSTRAINT') {
+          return res.status(409).json({ error: 'Category id already exists' });
+        }
+        console.error('Error creating category:', err);
+        return res.status(500).json({ error: 'Failed to create category' });
+      }
+      db.get('SELECT * FROM categories WHERE id = ?', [id], (fetchErr, row) => {
+        if (fetchErr) return res.status(500).json({ error: 'Failed to fetch created category' });
+        res.status(201).json(row);
+      });
+    }
+  );
+});
+
+app.put('/api/categories/:id', (req, res) => {
+  const updates = [];
+  const values = [];
+
+  if (req.body.name !== undefined) {
+    const name = typeof req.body.name === 'string' ? req.body.name.trim() : '';
+    if (!name || name.length > 80) {
+      return res.status(400).json({ error: 'Category name must be between 1 and 80 characters' });
+    }
+    updates.push('name = ?');
+    values.push(name);
+  }
+  if (req.body.color !== undefined) {
+    const color = typeof req.body.color === 'string' ? req.body.color.trim() : '';
+    if (!CATEGORY_COLOR_PATTERN.test(color)) {
+      return res.status(400).json({ error: 'Category color must be a six-digit hex value' });
+    }
+    updates.push('color = ?');
+    values.push(color);
+  }
+  if (updates.length === 0) {
+    return res.status(400).json({ error: 'No fields to update' });
+  }
+
+  updates.push('updatedAt = CURRENT_TIMESTAMP');
+  values.push(req.params.id);
+  db.run(`UPDATE categories SET ${updates.join(', ')} WHERE id = ?`, values, function(err) {
+    if (err) {
+      console.error('Error updating category:', err);
+      return res.status(500).json({ error: 'Failed to update category' });
+    }
+    if (this.changes === 0) {
+      return res.status(404).json({ error: 'Category not found' });
+    }
+    db.get('SELECT * FROM categories WHERE id = ?', [req.params.id], (fetchErr, row) => {
+      if (fetchErr) return res.status(500).json({ error: 'Failed to fetch updated category' });
+      res.json(row);
+    });
+  });
+});
+
+app.delete('/api/categories/:id', (req, res) => {
+  db.serialize(() => {
+    db.run('BEGIN IMMEDIATE TRANSACTION', (beginErr) => {
+      if (beginErr) {
+        console.error('Error starting category delete:', beginErr);
+        return res.status(500).json({ error: 'Failed to delete category' });
+      }
+
+      const rollback = (status, message, error) => {
+        if (error) console.error('Error deleting category:', error);
+        db.run('ROLLBACK', () => res.status(status).json({ error: message }));
+      };
+
+      db.run('UPDATE todos SET categoryId = NULL, updatedAt = CURRENT_TIMESTAMP WHERE categoryId = ?', [req.params.id], (updateErr) => {
+        if (updateErr) return rollback(500, 'Failed to unassign category from tasks', updateErr);
+
+        db.run('DELETE FROM categories WHERE id = ?', [req.params.id], function(deleteErr) {
+          if (deleteErr) return rollback(500, 'Failed to delete category', deleteErr);
+          if (this.changes === 0) return rollback(404, 'Category not found');
+
+          db.run('COMMIT', (commitErr) => {
+            if (commitErr) return rollback(500, 'Failed to delete category', commitErr);
+            res.json({ success: true });
+          });
+        });
+      });
+    });
+  });
+});
+
 // Todos
 app.get('/api/todos', (req, res) => {
   db.all('SELECT * FROM todos ORDER BY createdAt DESC', (err, rows) => {
@@ -319,69 +504,80 @@ app.get('/api/todos', (req, res) => {
 });
 
 app.post('/api/todos', (req, res) => {
-  const { title, completed, priority, dueDate, repeatType, repeatInterval, repeatDays, repeatLimit, repeatEndDate } = req.body;
+  const { title, completed, priority, dueDate, repeatType, repeatInterval, repeatDays, repeatLimit, repeatEndDate, categoryId } = req.body;
   if (!title || !title.trim()) {
     return res.status(400).json({ error: 'Title is required' });
   }
-  const repeatDaysStr = repeatDays ? JSON.stringify(repeatDays) : null;
-  db.run(
-    `INSERT INTO todos (title, completed, priority, dueDate, repeatType, repeatInterval, repeatDays, repeatLimit, repeatCount, repeatEndDate)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`,
-    [
-      title.trim(),
-      completed ? 1 : 0,
-      priority || 'medium',
-      dueDate || null,
-      repeatType || 'none',
-      repeatInterval || null,
-      repeatDaysStr,
-      repeatLimit || null,
-      repeatEndDate || null,
-    ],
-    function(err) {
-      if (err) {
-        console.error('Error creating todo:', err);
-        return res.status(500).json({ error: 'Failed to create todo' });
+  validateCategoryId(categoryId ?? null, res, (validatedCategoryId) => {
+    const repeatDaysStr = repeatDays ? JSON.stringify(repeatDays) : null;
+    db.run(
+      `INSERT INTO todos (title, completed, priority, dueDate, repeatType, repeatInterval, repeatDays, repeatLimit, repeatCount, repeatEndDate, categoryId)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
+      [
+        title.trim(),
+        completed ? 1 : 0,
+        priority || 'medium',
+        dueDate || null,
+        repeatType || 'none',
+        repeatInterval || null,
+        repeatDaysStr,
+        repeatLimit || null,
+        repeatEndDate || null,
+        validatedCategoryId,
+      ],
+      function(err) {
+        if (err) {
+          console.error('Error creating todo:', err);
+          return res.status(500).json({ error: 'Failed to create todo' });
+        }
+        db.get('SELECT * FROM todos WHERE id = ?', [this.lastID], (err2, row) => {
+          if (err2) return res.status(500).json({ error: 'Failed to fetch created todo' });
+          res.status(201).json(row);
+        });
       }
-      db.get('SELECT * FROM todos WHERE id = ?', [this.lastID], (err2, row) => {
-        if (err2) return res.status(500).json({ error: 'Failed to fetch created todo' });
-        res.status(201).json(row);
-      });
-    }
-  );
+    );
+  });
 });
 
 app.put('/api/todos/:id', (req, res) => {
-  const { title, completed, priority, dueDate, repeatType, repeatInterval, repeatDays, repeatLimit, repeatCount, repeatEndDate } = req.body;
-  const updates = [];
-  const values = [];
+  const { title, completed, priority, dueDate, repeatType, repeatInterval, repeatDays, repeatLimit, repeatCount, repeatEndDate, categoryId } = req.body;
 
-  if (title !== undefined) { updates.push('title = ?'); values.push(title); }
-  if (completed !== undefined) { updates.push('completed = ?'); values.push(completed ? 1 : 0); }
-  if (priority !== undefined) { updates.push('priority = ?'); values.push(priority); }
-  if (dueDate !== undefined) { updates.push('dueDate = ?'); values.push(dueDate || null); }
-  if (repeatType !== undefined) { updates.push('repeatType = ?'); values.push(repeatType); }
-  if (repeatInterval !== undefined) { updates.push('repeatInterval = ?'); values.push(repeatInterval || null); }
-  if (repeatDays !== undefined) { updates.push('repeatDays = ?'); values.push(repeatDays ? JSON.stringify(repeatDays) : null); }
-  if (repeatLimit !== undefined) { updates.push('repeatLimit = ?'); values.push(repeatLimit || null); }
-  if (repeatCount !== undefined) { updates.push('repeatCount = ?'); values.push(repeatCount); }
-  if (repeatEndDate !== undefined) { updates.push('repeatEndDate = ?'); values.push(repeatEndDate || null); }
+  const updateTodo = (validatedCategoryId) => {
+    const updates = [];
+    const values = [];
 
-  if (updates.length === 0) return res.status(400).json({ error: 'No fields to update' });
+    if (title !== undefined) { updates.push('title = ?'); values.push(title); }
+    if (completed !== undefined) { updates.push('completed = ?'); values.push(completed ? 1 : 0); }
+    if (priority !== undefined) { updates.push('priority = ?'); values.push(priority); }
+    if (dueDate !== undefined) { updates.push('dueDate = ?'); values.push(dueDate || null); }
+    if (repeatType !== undefined) { updates.push('repeatType = ?'); values.push(repeatType); }
+    if (repeatInterval !== undefined) { updates.push('repeatInterval = ?'); values.push(repeatInterval || null); }
+    if (repeatDays !== undefined) { updates.push('repeatDays = ?'); values.push(repeatDays ? JSON.stringify(repeatDays) : null); }
+    if (repeatLimit !== undefined) { updates.push('repeatLimit = ?'); values.push(repeatLimit || null); }
+    if (repeatCount !== undefined) { updates.push('repeatCount = ?'); values.push(repeatCount); }
+    if (repeatEndDate !== undefined) { updates.push('repeatEndDate = ?'); values.push(repeatEndDate || null); }
+    if (categoryId !== undefined) { updates.push('categoryId = ?'); values.push(validatedCategoryId); }
 
-  updates.push('updatedAt = CURRENT_TIMESTAMP');
-  values.push(req.params.id);
+    if (updates.length === 0) return res.status(400).json({ error: 'No fields to update' });
 
-  db.run(`UPDATE todos SET ${updates.join(', ')} WHERE id = ?`, values, function(err) {
-    if (err) {
-      console.error('Error updating todo:', err);
-      return res.status(500).json({ error: 'Failed to update todo' });
-    }
-    db.get('SELECT * FROM todos WHERE id = ?', [req.params.id], (err2, row) => {
-      if (err2) return res.status(500).json({ error: 'Failed to fetch updated todo' });
-      res.json(row);
+    updates.push('updatedAt = CURRENT_TIMESTAMP');
+    values.push(req.params.id);
+
+    db.run(`UPDATE todos SET ${updates.join(', ')} WHERE id = ?`, values, function(err) {
+      if (err) {
+        console.error('Error updating todo:', err);
+        return res.status(500).json({ error: 'Failed to update todo' });
+      }
+      if (this.changes === 0) return res.status(404).json({ error: 'Todo not found' });
+      db.get('SELECT * FROM todos WHERE id = ?', [req.params.id], (err2, row) => {
+        if (err2) return res.status(500).json({ error: 'Failed to fetch updated todo' });
+        res.json(row);
+      });
     });
-  });
+  };
+
+  if (categoryId === undefined) updateTodo(undefined);
+  else validateCategoryId(categoryId, res, updateTodo);
 });
 
 app.delete('/api/todos/:id', (req, res) => {
@@ -1280,7 +1476,8 @@ app.delete('/api/drawings/:id', (req, res) => {
   });
 });
 
-const PORT = process.env.PORT || 5000;
+const configuredPort = process.env.PORT;
+const PORT = configuredPort && /^\d+$/.test(configuredPort) ? Number(configuredPort) : (configuredPort || 5000);
 function startServer() {
   server = app.listen(PORT, () => {
     console.log(`✓ Server running on http://localhost:${PORT}`);

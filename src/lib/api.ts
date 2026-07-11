@@ -75,6 +75,33 @@ export const todoAPI = {
     }),
 };
 
+// TASK CATEGORIES API
+export interface TaskCategory {
+  id: string;
+  name: string;
+  color: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export const categoriesAPI = {
+  getAll: () => fetchAPI<TaskCategory[]>('/categories'),
+  create: (name: string, color: string, id?: string) =>
+    fetchAPI<TaskCategory>('/categories', {
+      method: 'POST',
+      body: JSON.stringify({ name, color, ...(id ? { id } : {}) }),
+    }),
+  update: (id: string, updates: { name?: string; color?: string }) =>
+    fetchAPI<TaskCategory>(`/categories/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    }),
+  delete: (id: string) =>
+    fetchAPI<void>(`/categories/${id}`, {
+      method: 'DELETE',
+    }),
+};
+
 // NOTES API
 export const notesAPI = {
   getAll: () => fetchAPI<any[]>('/notes'),

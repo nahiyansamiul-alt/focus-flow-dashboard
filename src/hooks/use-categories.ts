@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
+import { categoriesAPI } from "@/lib/api";
 
 export interface Category {
   id: string;
   name: string;
-  color: string; // hex
+  color: string;
 }
 
-const CATEGORIES_KEY = "focus.taskCategories.v1";
-const TASK_MAP_KEY = "focus.taskCategoryMap.v1";
+const LEGACY_CATEGORIES_KEY = "focus.taskCategories.v1";
+const LEGACY_TASK_MAP_KEY = "focus.taskCategoryMap.v1";
 
 export const CATEGORY_COLORS = [
   "#5ca8e0",
@@ -20,127 +21,199 @@ export const CATEGORY_COLORS = [
   "#e07171",
 ];
 
-const DEFAULT_CATEGORIES: Category[] = [
-  { id: "cat-work", name: "Work", color: "#5ca8e0" },
-  { id: "cat-personal", name: "Personal", color: "#9b7ed9" },
-  { id: "cat-study", name: "Study", color: "#e09746" },
-];
+const isCategory = (value: unknown): value is Category => {
+  if (!value || typeof value !== "object") return false;
+  const category = value as Partial<Category>;
+  return (
+    typeof category.id === "string" &&
+    category.id.length > 0 &&
+    typeof category.name === "string" &&
+    category.name.trim().length > 0 &&
+    typeof category.color === "string"
+  );
+};
 
-const readCategories = (): Category[] => {
+const readLegacyCategories = (): Category[] => {
+  if (typeof window === "undefined") return [];
+
   try {
-    const raw = localStorage.getItem(CATEGORIES_KEY);
-    if (!raw) return DEFAULT_CATEGORIES;
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return DEFAULT_CATEGORIES;
-    return parsed;
+    const raw = window.localStorage.getItem(LEGACY_CATEGORIES_KEY);
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter(isCategory) : [];
   } catch {
-    return DEFAULT_CATEGORIES;
+    return [];
   }
 };
 
-const readTaskMap = (): Record<string, string> => {
+export const readLegacyTaskCategoryMap = (): Record<string, string> => {
+  if (typeof window === "undefined") return {};
+
   try {
-    const raw = localStorage.getItem(TASK_MAP_KEY);
+    const raw = window.localStorage.getItem(LEGACY_TASK_MAP_KEY);
     if (!raw) return {};
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === "object" ? parsed : {};
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+
+    return Object.fromEntries(
+      Object.entries(parsed).filter(
+        ([taskId, categoryId]) => taskId.length > 0 && typeof categoryId === "string"
+      )
+    );
   } catch {
     return {};
   }
 };
 
-// Simple pub-sub so multiple hook instances stay in sync
+export const clearLegacyTaskCategoryMap = () => {
+  if (typeof window !== "undefined") {
+    window.localStorage.removeItem(LEGACY_TASK_MAP_KEY);
+  }
+};
+
 type Listener = () => void;
 const listeners = new Set<Listener>();
-const notify = () => listeners.forEach((l) => l());
+const notifyCategoriesChanged = () => listeners.forEach((listener) => listener());
+
+const responseData = <T,>(response: { success: boolean; data?: T; error?: string }): T => {
+  if (!response.success) {
+    throw new Error(response.error || "Category request failed");
+  }
+  return response.data as T;
+};
+
+const fetchCategories = async (): Promise<Category[]> => {
+  const response = await categoriesAPI.getAll();
+  return responseData<Category[]>(response) || [];
+};
+
+const loadAndMigrateCategories = async (): Promise<Category[]> => {
+  let categories = await fetchCategories();
+  const legacyCategories = readLegacyCategories();
+
+  if (legacyCategories.length === 0) return categories;
+
+  const existingById = new Map(categories.map((category) => [category.id, category]));
+  let changed = false;
+
+  for (const legacyCategory of legacyCategories) {
+    const existing = existingById.get(legacyCategory.id);
+
+    if (!existing) {
+      responseData(
+        await categoriesAPI.create(
+          legacyCategory.name.trim(),
+          legacyCategory.color,
+          legacyCategory.id
+        )
+      );
+      changed = true;
+      continue;
+    }
+
+    if (existing.name !== legacyCategory.name.trim() || existing.color !== legacyCategory.color) {
+      responseData(
+        await categoriesAPI.update(legacyCategory.id, {
+          name: legacyCategory.name.trim(),
+          color: legacyCategory.color,
+        })
+      );
+      changed = true;
+    }
+  }
+
+  window.localStorage.removeItem(LEGACY_CATEGORIES_KEY);
+  if (changed) categories = await fetchCategories();
+  return categories;
+};
+
+let categoriesLoadInFlight: Promise<Category[]> | null = null;
+const loadCategories = () => {
+  if (!categoriesLoadInFlight) {
+    categoriesLoadInFlight = loadAndMigrateCategories().finally(() => {
+      categoriesLoadInFlight = null;
+    });
+  }
+  return categoriesLoadInFlight;
+};
 
 export const useCategories = () => {
-  const [categories, setCategoriesState] = useState<Category[]>(() => readCategories());
-  const [taskMap, setTaskMapState] = useState<Record<string, string>>(() => readTaskMap());
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const refreshCategories = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const next = await loadCategories();
+      setCategories(next);
+      setError(null);
+      return next;
+    } catch (requestError) {
+      const message = requestError instanceof Error ? requestError.message : "Failed to load categories";
+      setError(message);
+      throw requestError;
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    const listener = () => {
-      setCategoriesState(readCategories());
-      setTaskMapState(readTaskMap());
+    let active = true;
+    const refresh = () => {
+      void refreshCategories().catch(() => {
+        // The exposed error state lets the UI report backend failures.
+      });
     };
+    const listener = () => {
+      if (active) refresh();
+    };
+
     listeners.add(listener);
+    refresh();
+
     return () => {
+      active = false;
       listeners.delete(listener);
     };
-  }, []);
+  }, [refreshCategories]);
 
-  const persistCategories = useCallback((next: Category[]) => {
-    localStorage.setItem(CATEGORIES_KEY, JSON.stringify(next));
-    setCategoriesState(next);
-    notify();
+  const createCategory = useCallback(async (name: string, color: string) => {
+    const category = responseData<Category>(await categoriesAPI.create(name.trim(), color));
+    notifyCategoriesChanged();
+    return category;
   }, []);
-
-  const persistTaskMap = useCallback((next: Record<string, string>) => {
-    localStorage.setItem(TASK_MAP_KEY, JSON.stringify(next));
-    setTaskMapState(next);
-    notify();
-  }, []);
-
-  const createCategory = useCallback(
-    (name: string, color: string) => {
-      const cat: Category = {
-        id: `cat-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
-        name: name.trim(),
-        color,
-      };
-      persistCategories([...readCategories(), cat]);
-      return cat;
-    },
-    [persistCategories]
-  );
 
   const updateCategory = useCallback(
-    (id: string, updates: Partial<Omit<Category, "id">>) => {
-      const next = readCategories().map((c) => (c.id === id ? { ...c, ...updates } : c));
-      persistCategories(next);
+    async (id: string, updates: Partial<Omit<Category, "id">>) => {
+      const category = responseData<Category>(await categoriesAPI.update(id, updates));
+      notifyCategoriesChanged();
+      return category;
     },
-    [persistCategories]
+    []
   );
 
-  const deleteCategory = useCallback(
-    (id: string) => {
-      persistCategories(readCategories().filter((c) => c.id !== id));
-      // Unassign from any tasks
-      const map = { ...readTaskMap() };
-      Object.keys(map).forEach((k) => {
-        if (map[k] === id) delete map[k];
-      });
-      persistTaskMap(map);
-    },
-    [persistCategories, persistTaskMap]
-  );
-
-  const setTaskCategory = useCallback(
-    (taskId: string, categoryId: string | null) => {
-      const map = { ...readTaskMap() };
-      if (categoryId) map[taskId] = categoryId;
-      else delete map[taskId];
-      persistTaskMap(map);
-    },
-    [persistTaskMap]
-  );
+  const deleteCategory = useCallback(async (id: string) => {
+    responseData<void>(await categoriesAPI.delete(id));
+    notifyCategoriesChanged();
+  }, []);
 
   const getTaskCategory = useCallback(
-    (taskId: string): Category | undefined => {
-      const catId = taskMap[taskId];
-      if (!catId) return undefined;
-      return categories.find((c) => c.id === catId);
+    (categoryId?: string | null): Category | undefined => {
+      if (!categoryId) return undefined;
+      return categories.find((category) => category.id === categoryId);
     },
-    [categories, taskMap]
+    [categories]
   );
 
   return {
     categories,
-    taskMap,
+    isLoading,
+    error,
+    refreshCategories,
     createCategory,
     updateCategory,
     deleteCategory,
-    setTaskCategory,
     getTaskCategory,
   };
 };

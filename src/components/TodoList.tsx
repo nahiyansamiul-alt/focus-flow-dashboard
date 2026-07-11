@@ -1,4 +1,4 @@
-import React, { forwardRef, useMemo, useState, useEffect } from "react";
+import React, { forwardRef, useCallback, useMemo, useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -8,7 +8,12 @@ import TodoForm, { TodoFormData } from "./TodoForm";
 import GradientText from "@/components/ui/gradient-text";
 import { cn } from "@/lib/utils";
 import { getApiBaseUrl } from "@/lib/api";
-import { useCategories, Category } from "@/hooks/use-categories";
+import {
+  Category,
+  clearLegacyTaskCategoryMap,
+  readLegacyTaskCategoryMap,
+  useCategories,
+} from "@/hooks/use-categories";
 import CategoryManager from "./CategoryManager";
 
 interface Todo {
@@ -25,6 +30,7 @@ interface Todo {
   repeatEndDate?: string | null;
   priority?: "low" | "medium" | "high";
   dueDate?: string | null;
+  categoryId?: string | null;
 }
 
 interface AnimatedTodoProps {
@@ -46,6 +52,7 @@ const activityGradientColors = ["#5ca8e0", "#9b7ed9", "#d96aa3", "#e09746"];
 const TODO_ROW_HEIGHT = 40;
 const TODO_LIST_HEIGHT = 240;
 const TODO_OVERSCAN = 6;
+const getTodoId = (todo: Todo) => todo._id || (todo.id !== undefined ? String(todo.id) : "");
 
 const CategoryPill = ({ category }: { category: Category }) => (
   <span
@@ -144,9 +151,12 @@ const TodoList = () => {
   const [activeFilter, setActiveFilter] = useState<string | "all">("all");
   const [managerOpen, setManagerOpen] = useState(false);
 
-  const { categories, getTaskCategory, setTaskCategory, taskMap } = useCategories();
-
-  const getTodoId = (todo: Todo) => todo._id || String(todo.id) || "";
+  const {
+    categories,
+    getTaskCategory,
+    isLoading: categoriesLoading,
+    error: categoriesError,
+  } = useCategories();
 
   const parseDate = (value?: string | null) => {
     if (!value) return null;
@@ -174,22 +184,23 @@ const TodoList = () => {
     repeatEndDate: parseDate(todo.repeatEndDate),
     priority: todo.priority || "medium",
     dueDate: parseDate(todo.dueDate),
-    categoryId: taskMap[getTodoId(todo)] ?? null,
+    categoryId: todo.categoryId ?? null,
   });
 
   const filteredTodos = useMemo(() => {
     if (activeFilter === "all") return todos;
-    return todos.filter((t) => taskMap[getTodoId(t)] === activeFilter);
-  }, [todos, activeFilter, taskMap]);
+    return todos.filter((todo) => todo.categoryId === activeFilter);
+  }, [todos, activeFilter]);
 
   const categoryCounts = useMemo(() => {
     const counts: Record<string, number> = {};
-    todos.forEach((t) => {
-      const cid = taskMap[getTodoId(t)];
-      if (cid) counts[cid] = (counts[cid] || 0) + 1;
+    todos.forEach((todo) => {
+      if (todo.categoryId) {
+        counts[todo.categoryId] = (counts[todo.categoryId] || 0) + 1;
+      }
     });
     return counts;
-  }, [todos, taskMap]);
+  }, [todos]);
 
   const visibleTodos = useMemo(() => {
     const start = Math.max(0, Math.floor(scrollTop / TODO_ROW_HEIGHT) - TODO_OVERSCAN);
@@ -202,16 +213,54 @@ const TodoList = () => {
     };
   }, [filteredTodos, scrollTop]);
 
-  const fetchTodos = async () => {
+  const migrateLegacyTaskCategories = useCallback(async (fetchedTodos: Todo[]) => {
+    const legacyMap = readLegacyTaskCategoryMap();
+    if (Object.keys(legacyMap).length === 0) return fetchedTodos;
+
+    const validCategoryIds = new Set(categories.map((category) => category.id));
+    let migrationSucceeded = true;
+
+    const migratedTodos = await Promise.all(
+      fetchedTodos.map(async (todo) => {
+        const taskId = getTodoId(todo);
+        const legacyCategoryId = taskId ? legacyMap[taskId] : undefined;
+        if (todo.categoryId || !legacyCategoryId || !validCategoryIds.has(legacyCategoryId)) {
+          return todo;
+        }
+
+        try {
+          const response = await fetch(`${getApiBaseUrl()}/todos/${taskId}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ categoryId: legacyCategoryId }),
+          });
+          if (!response.ok) {
+            migrationSucceeded = false;
+            return todo;
+          }
+          return (await response.json()) as Todo;
+        } catch (error) {
+          migrationSucceeded = false;
+          console.error("Error migrating a task category:", error);
+          return todo;
+        }
+      })
+    );
+
+    if (migrationSucceeded) clearLegacyTaskCategoryMap();
+    return migratedTodos;
+  }, [categories]);
+
+  const fetchTodos = useCallback(async () => {
     try {
       const res = await fetch(`${getApiBaseUrl()}/todos`);
       if (!res.ok) throw new Error(`Failed to fetch todos: ${res.statusText}`);
-      const data = await res.json();
-      setTodos(data);
+      const data = (await res.json()) as Todo[];
+      setTodos(await migrateLegacyTaskCategories(data));
     } catch (error) {
       console.error("Error fetching todos:", error);
     }
-  };
+  }, [migrateLegacyTaskCategories]);
 
   const addQuickTodo = async () => {
     if (quickTodo.trim()) {
@@ -219,15 +268,12 @@ const TodoList = () => {
         const res = await fetch(`${getApiBaseUrl()}/todos`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ title: quickTodo.trim() }),
+          body: JSON.stringify({
+            title: quickTodo.trim(),
+            categoryId: activeFilter === "all" ? null : activeFilter,
+          }),
         });
         if (res.ok) {
-          const created = await res.json();
-          // If a filter is active, auto-assign that category
-          if (activeFilter !== "all" && created) {
-            const id = created._id || String(created.id) || "";
-            if (id) setTaskCategory(id, activeFilter);
-          }
           await fetchTodos();
           setQuickTodo("");
         }
@@ -251,14 +297,10 @@ const TodoList = () => {
           repeatEndDate: data.repeatEndDate?.toISOString() || null,
           priority: data.priority,
           dueDate: data.dueDate?.toISOString() || null,
+          categoryId: data.categoryId ?? null,
         }),
       });
       if (res.ok) {
-        const created = await res.json();
-        if (created) {
-          const id = created._id || String(created.id) || "";
-          if (id) setTaskCategory(id, data.categoryId ?? null);
-        }
         await fetchTodos();
       }
     } catch (error) {
@@ -284,10 +326,10 @@ const TodoList = () => {
           repeatEndDate: data.repeatEndDate?.toISOString() || null,
           priority: data.priority,
           dueDate: data.dueDate?.toISOString() || null,
+          categoryId: data.categoryId ?? null,
         }),
       });
       if (res.ok) {
-        setTaskCategory(id, data.categoryId ?? null);
         await fetchTodos();
         setEditingTodo(null);
       }
@@ -300,11 +342,12 @@ const TodoList = () => {
     const todo = todos.find((t) => t._id === id || String(t.id) === id);
     if (!todo) return;
     try {
-      await fetch(`${getApiBaseUrl()}/todos/${id}`, {
+      const response = await fetch(`${getApiBaseUrl()}/todos/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ completed: !todo.completed }),
       });
+      if (!response.ok) throw new Error(`Failed to update todo: ${response.statusText}`);
       await fetchTodos();
     } catch (error) {
       console.error("Error toggling todo:", error);
@@ -312,14 +355,22 @@ const TodoList = () => {
   };
 
   const deleteTodo = async (id: string) => {
-    await fetch(`${getApiBaseUrl()}/todos/${id}`, { method: "DELETE" });
-    setTaskCategory(id, null);
+    const response = await fetch(`${getApiBaseUrl()}/todos/${id}`, { method: "DELETE" });
+    if (!response.ok) throw new Error(`Failed to delete todo: ${response.statusText}`);
     await fetchTodos();
   };
 
   useEffect(() => {
-    fetchTodos();
-  }, []);
+    if (!categoriesLoading && !categoriesError) {
+      void fetchTodos();
+    }
+  }, [categoriesLoading, categoriesError, fetchTodos]);
+
+  useEffect(() => {
+    if (activeFilter !== "all" && !categories.some((category) => category.id === activeFilter)) {
+      setActiveFilter("all");
+    }
+  }, [activeFilter, categories]);
 
   const completedCount = todos.filter((t) => t.completed).length;
 
@@ -414,7 +465,7 @@ const TodoList = () => {
                   <AnimatedTodo
                     key={todo._id || todo.id}
                     todo={todo}
-                    category={getTaskCategory(getTodoId(todo))}
+                    category={getTaskCategory(todo.categoryId)}
                     index={visibleTodos.start + index}
                     onToggle={() => toggleTodo(getTodoId(todo))}
                     onEdit={() => {

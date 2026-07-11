@@ -5,6 +5,10 @@
     "name": "Samiul Nahiyan",
     "email": "noemail.email@example.com"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/CWE-119/focus-flow-dashboard.git"
+  },
   "private": true,
   "version": "1.1.0",
   "type": "module",
@@ -16,14 +20,16 @@
     "clean:electron": "node scripts/clean-electron-output.mjs",
     "build:electron": "npm run build && npm run clean:electron && electron-builder",
     "build:electron:win": "npm run build && npm run clean:electron && electron-builder -w",
+    "publish:electron:win": "npm run build && npm run clean:electron && electron-builder --win --publish always",
     "build:electron:mac": "npm run build && npm run clean:electron && electron-builder -m",
     "build:electron:linux": "npm run build && npm run clean:electron && electron-builder -l",
     "build:electron:all": "npm run build && npm run clean:electron && electron-builder -wml",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",
-    "release:check": "node scripts/release-check.mjs && npm run test -- --run && npm run build && node --check backend/index.js",
+    "release:check": "node scripts/release-check.mjs && npm run test -- --run && npm run test:backend && npm run build && node --check backend/index.js",
     "test": "vitest run",
+    "test:backend": "node --test backend/test/*.test.cjs",
     "test:watch": "vitest"
   },
   "dependencies": {

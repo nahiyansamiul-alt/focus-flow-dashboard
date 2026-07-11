@@ -31,18 +31,37 @@ const ColorSwatches = ({ value, onChange }: { value: string; onChange: (c: strin
 );
 
 export const CategoryManager = ({ isOpen, onOpenChange }: CategoryManagerProps) => {
-  const { categories, createCategory, updateCategory, deleteCategory } = useCategories();
+  const {
+    categories,
+    createCategory,
+    updateCategory,
+    deleteCategory,
+    isLoading,
+    error,
+  } = useCategories();
   const [newName, setNewName] = useState("");
   const [newColor, setNewColor] = useState(CATEGORY_COLORS[0]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editColor, setEditColor] = useState(CATEGORY_COLORS[0]);
+  const [isSaving, setIsSaving] = useState(false);
+  const [operationError, setOperationError] = useState<string | null>(null);
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     if (!newName.trim()) return;
-    createCategory(newName, newColor);
-    setNewName("");
-    setNewColor(CATEGORY_COLORS[0]);
+    setIsSaving(true);
+    setOperationError(null);
+    try {
+      await createCategory(newName, newColor);
+      setNewName("");
+      setNewColor(CATEGORY_COLORS[0]);
+    } catch (requestError) {
+      setOperationError(
+        requestError instanceof Error ? requestError.message : "Failed to create category"
+      );
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const beginEdit = (c: Category) => {
@@ -51,10 +70,34 @@ export const CategoryManager = ({ isOpen, onOpenChange }: CategoryManagerProps) 
     setEditColor(c.color);
   };
 
-  const commitEdit = () => {
+  const commitEdit = async () => {
     if (!editingId || !editName.trim()) return;
-    updateCategory(editingId, { name: editName.trim(), color: editColor });
-    setEditingId(null);
+    setIsSaving(true);
+    setOperationError(null);
+    try {
+      await updateCategory(editingId, { name: editName.trim(), color: editColor });
+      setEditingId(null);
+    } catch (requestError) {
+      setOperationError(
+        requestError instanceof Error ? requestError.message : "Failed to update category"
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    setIsSaving(true);
+    setOperationError(null);
+    try {
+      await deleteCategory(id);
+    } catch (requestError) {
+      setOperationError(
+        requestError instanceof Error ? requestError.message : "Failed to delete category"
+      );
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -68,12 +111,22 @@ export const CategoryManager = ({ isOpen, onOpenChange }: CategoryManagerProps) 
         </DialogHeader>
 
         <div className="space-y-4">
+          {(operationError || error) && (
+            <p role="alert" className="text-sm text-destructive font-body">
+              {operationError || error}
+            </p>
+          )}
+
           {/* Existing */}
           <div className="space-y-2">
             <Label className="font-body text-xs uppercase tracking-widest text-muted-foreground">
               Your Categories
             </Label>
-            {categories.length === 0 ? (
+            {isLoading && categories.length === 0 ? (
+              <p className="font-body text-sm text-muted-foreground py-4 text-center">
+                Loading categories...
+              </p>
+            ) : categories.length === 0 ? (
               <p className="font-body text-sm text-muted-foreground py-4 text-center">
                 No categories yet.
               </p>
@@ -88,14 +141,16 @@ export const CategoryManager = ({ isOpen, onOpenChange }: CategoryManagerProps) 
                           onChange={(e) => setEditName(e.target.value)}
                           className="font-body text-sm"
                           autoFocus
-                          onKeyDown={(e) => e.key === "Enter" && commitEdit()}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") void commitEdit();
+                          }}
                         />
                         <ColorSwatches value={editColor} onChange={setEditColor} />
                         <div className="flex justify-end gap-1">
                           <Button size="sm" variant="ghost" onClick={() => setEditingId(null)}>
                             <X className="w-3 h-3" />
                           </Button>
-                          <Button size="sm" onClick={commitEdit}>
+                          <Button size="sm" onClick={() => void commitEdit()} disabled={isSaving}>
                             <Check className="w-3 h-3" />
                           </Button>
                         </div>
@@ -113,7 +168,8 @@ export const CategoryManager = ({ isOpen, onOpenChange }: CategoryManagerProps) 
                         <Button
                           size="sm"
                           variant="ghost"
-                          onClick={() => deleteCategory(c.id)}
+                          onClick={() => void handleDelete(c.id)}
+                          disabled={isSaving}
                           className="h-7 w-7 p-0 text-destructive hover:text-destructive"
                           title="Delete"
                         >
@@ -137,10 +193,17 @@ export const CategoryManager = ({ isOpen, onOpenChange }: CategoryManagerProps) 
               onChange={(e) => setNewName(e.target.value)}
               placeholder="Category name"
               className="font-body text-sm"
-              onKeyDown={(e) => e.key === "Enter" && handleCreate()}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void handleCreate();
+              }}
             />
             <ColorSwatches value={newColor} onChange={setNewColor} />
-            <Button onClick={handleCreate} disabled={!newName.trim()} className="w-full gap-2" size="sm">
+            <Button
+              onClick={() => void handleCreate()}
+              disabled={!newName.trim() || isSaving}
+              className="w-full gap-2"
+              size="sm"
+            >
               <Plus className="w-4 h-4" />
               Add Category
             </Button>
