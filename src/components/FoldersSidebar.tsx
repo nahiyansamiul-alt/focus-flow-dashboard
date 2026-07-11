@@ -88,6 +88,7 @@ const FoldersSidebar = () => {
   const [editingName, setEditingName] = useState("");
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [scrollTop, setScrollTop] = useState(0);
+  const [folderQuery, setFolderQuery] = useState("");
 
   const noteCountsByFolder = useMemo(() => {
     const counts = new Map<string, number>();
