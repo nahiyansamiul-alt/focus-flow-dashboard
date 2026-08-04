@@ -6,6 +6,7 @@ interface Folder {
   id?: string | number;
   name: string;
   color?: string | null;
+  parentId?: string | number | null;
   createdAt?: Date;
 }
 
@@ -17,10 +18,12 @@ interface Note {
   folderId: string | number | { _id?: string | number; id?: string | number }; // Can be populated or just an ID
   revision?: number;
   pinned?: boolean;
+  important?: boolean;
   lastViewedAt?: string | Date | null;
   createdAt?: string | Date;
   updatedAt?: string | Date;
 }
+
 
 interface NoteVersion {
   id: string | number;
@@ -48,7 +51,7 @@ interface NotesContextType {
   selectedNoteId: string | null;
   
   // Folder operations
-  createFolder: (name: string, color: string) => Promise<Folder | null>;
+  createFolder: (name: string, color: string, parentId?: string | null) => Promise<Folder | null>;
   updateFolder: (id: string, updates: Partial<Folder>) => Promise<void>;
   deleteFolder: (id: string) => Promise<void>;
   selectFolder: (id: string | null) => void;
@@ -59,6 +62,8 @@ interface NotesContextType {
   createNoteInFolder: (folderId: string, title: string, content: string) => Promise<Note | null>;
   updateNote: (id: string, updates: Partial<Note>) => Promise<Note | null>;
   toggleNotePinned: (id: string, pinned: boolean) => Promise<Note | null>;
+  toggleNoteImportant: (id: string, important: boolean) => Promise<Note | null>;
+
   deleteNote: (id: string) => Promise<void>;
   selectNote: (id: string | null) => void;
   getSelectedNote: () => Note | null;
@@ -160,13 +165,14 @@ export const NotesProvider = ({ children }: { children: ReactNode }) => {
   };
 
   // Create folder
-  const createFolder = async (name: string, color: string): Promise<Folder | null> => {
+  const createFolder = async (name: string, color: string, parentId?: string | null): Promise<Folder | null> => {
     try {
       const response = await fetch(`${getApiBaseUrl()}/folders`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, color }),
+        body: JSON.stringify({ name, color, parentId: parentId ?? null }),
       });
+
       if (!response.ok) throw new Error("Failed to create folder");
       const folder = await response.json();
       setFolders((prev) => [...prev, folder]);
@@ -195,34 +201,45 @@ export const NotesProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  // Delete folder (and its notes via backend cascade)
+  // Delete folder, its subfolders and their notes (backend cascades too)
   const deleteFolder = async (id: string) => {
     try {
       const response = await fetch(`${getApiBaseUrl()}/folders/${id}`, {
         method: "DELETE",
       });
       if (!response.ok) throw new Error("Failed to delete folder");
-      
-      setFolders((prev) => prev.filter((f) => getFolderId(f) !== normalizeId(id)));
-      setAllNotes((prev) => prev.filter((n) => {
-        return getNoteFolderId(n) !== normalizeId(id);
-      }));
-      
-      // If the deleted folder was selected, clear selection
-      if (normalizeId(selectedFolderId) === normalizeId(id)) {
+
+      // Collect the folder and all of its descendants
+      const removedIds = new Set<string>([normalizeId(id)]);
+      let changed = true;
+      while (changed) {
+        changed = false;
+        folders.forEach((f) => {
+          const fid = getFolderId(f);
+          const parent = normalizeId(f.parentId as string | number | null);
+          if (parent && removedIds.has(parent) && !removedIds.has(fid)) {
+            removedIds.add(fid);
+            changed = true;
+          }
+        });
+      }
+
+      setFolders((prev) => prev.filter((f) => !removedIds.has(getFolderId(f))));
+      setAllNotes((prev) => prev.filter((n) => !removedIds.has(getNoteFolderId(n))));
+
+      // If a removed folder was selected, clear selection
+      if (removedIds.has(normalizeId(selectedFolderId))) {
         setSelectedFolderId(null);
         setSelectedNoteId(null);
         setNotes([]);
       } else {
-        // Remove notes from the deleted folder from state
-        setNotes((prev) => prev.filter((n) => {
-          return getNoteFolderId(n) !== normalizeId(id);
-        }));
+        setNotes((prev) => prev.filter((n) => !removedIds.has(getNoteFolderId(n))));
       }
     } catch (error) {
       console.error("Error deleting folder:", error);
     }
   };
+
 
   // Select folder
   const selectFolder = (id: string | null) => {
@@ -311,6 +328,10 @@ export const NotesProvider = ({ children }: { children: ReactNode }) => {
       console.error(`[NotesContext] Error updating note ${id}:`, error);
       return null;
     }
+  };
+
+  const toggleNoteImportant = async (id: string, important: boolean): Promise<Note | null> => {
+    return updateNote(id, { important });
   };
 
   const toggleNotePinned = async (id: string, pinned: boolean): Promise<Note | null> => {
@@ -427,6 +448,7 @@ export const NotesProvider = ({ children }: { children: ReactNode }) => {
         createNoteInFolder,
         updateNote,
         toggleNotePinned,
+        toggleNoteImportant,
         deleteNote,
         selectNote,
         getSelectedNote,

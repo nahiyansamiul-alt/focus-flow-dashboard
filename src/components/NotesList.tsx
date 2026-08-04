@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { useNotes } from "@/contexts/NotesContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, FileText, Trash2, Pin, PinOff, Search, FolderOpen } from "lucide-react";
+import { Plus, FileText, Trash2, Pin, PinOff, Search, FolderOpen, Star, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getNoteFolderId, getNoteId } from "@/lib/note-links";
 
@@ -12,12 +12,16 @@ interface NoteRowProps {
   snippet: string;
   updatedAt?: string | Date;
   pinned?: boolean;
+  important?: boolean;
+  isRecent?: boolean;
   isSelected: boolean;
   onClick: () => void;
   onDelete: () => void;
   onTogglePin: () => void;
+  onToggleImportant: () => void;
   index: number;
 }
+
 
 const formatUpdated = (value?: string | Date) => {
   if (!value) return "";
@@ -43,7 +47,23 @@ const stripMarkdown = (content: string) =>
     .trim();
 
 const NoteRow = forwardRef<HTMLDivElement, NoteRowProps>(
-  ({ title, snippet, updatedAt, pinned, isSelected, onClick, onDelete, onTogglePin, index }, ref) => (
+  (
+    {
+      title,
+      snippet,
+      updatedAt,
+      pinned,
+      important,
+      isRecent,
+      isSelected,
+      onClick,
+      onDelete,
+      onTogglePin,
+      onToggleImportant,
+      index,
+    },
+    ref
+  ) => (
     <motion.div
       ref={ref}
       layout
@@ -55,24 +75,53 @@ const NoteRow = forwardRef<HTMLDivElement, NoteRowProps>(
         "group relative px-3 py-2 rounded-md cursor-pointer transition-colors border border-transparent",
         isSelected
           ? "bg-primary/10 border-primary/30"
-          : "hover:bg-muted/60"
+          : "hover:bg-muted/60",
+        important && !isSelected && "bg-amber-500/5"
       )}
       onClick={onClick}
     >
+      {important && (
+        <span className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-full bg-amber-500" />
+      )}
       <div className="flex items-start gap-2">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
             {pinned && <Pin className="w-3 h-3 flex-shrink-0 text-primary fill-primary" />}
+            {important && <Star className="w-3 h-3 flex-shrink-0 text-amber-500 fill-amber-500" />}
             <span className="text-sm font-body font-medium truncate">{title || "Untitled"}</span>
           </div>
           {snippet && (
             <p className="text-xs text-muted-foreground truncate mt-0.5">{snippet}</p>
           )}
-          <span className="text-[10px] uppercase tracking-wide text-muted-foreground/70 mt-1 block">
-            {formatUpdated(updatedAt)}
-          </span>
+          <div className="flex items-center gap-2 mt-1">
+            <span className="text-[10px] uppercase tracking-wide text-muted-foreground/70">
+              {formatUpdated(updatedAt)}
+            </span>
+            {isRecent && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-1.5 py-px text-[9px] font-medium uppercase tracking-wide text-primary">
+                <Clock className="w-2.5 h-2.5" /> Recent
+              </span>
+            )}
+            {important && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-1.5 py-px text-[9px] font-medium uppercase tracking-wide text-amber-600 dark:text-amber-400">
+                Important
+              </span>
+            )}
+          </div>
         </div>
         <div className="flex flex-col gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+          <Button
+            variant="ghost"
+            size="icon"
+            className={cn("h-6 w-6", important && "text-amber-500 hover:text-amber-500")}
+            title={important ? "Unmark important" : "Mark important"}
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleImportant();
+            }}
+          >
+            <Star className={cn("w-3 h-3", important && "fill-amber-500")} />
+          </Button>
           <Button
             variant="ghost"
             size="icon"
@@ -102,6 +151,7 @@ const NoteRow = forwardRef<HTMLDivElement, NoteRowProps>(
     </motion.div>
   )
 );
+
 NoteRow.displayName = "NoteRow";
 
 const NotesList = () => {
@@ -113,8 +163,10 @@ const NotesList = () => {
     deleteNote,
     selectNote,
     toggleNotePinned,
+    toggleNoteImportant,
     getSelectedFolder,
   } = useNotes();
+
 
   const folder = getSelectedFolder();
   const [query, setQuery] = useState("");
@@ -204,6 +256,8 @@ const NotesList = () => {
             <div className="space-y-1">
               {filteredNotes.map((note, index) => {
                 const id = getNoteId(note);
+                const updated = new Date((note as any).updatedAt || (note as any).createdAt || 0).getTime();
+                const isRecent = Date.now() - updated < 48 * 3600 * 1000;
                 return (
                   <NoteRow
                     key={id}
@@ -211,14 +265,18 @@ const NotesList = () => {
                     snippet={stripMarkdown(note.content || "").slice(0, 80)}
                     updatedAt={(note as any).updatedAt}
                     pinned={Boolean((note as any).pinned)}
+                    important={Boolean((note as any).important)}
+                    isRecent={isRecent}
                     isSelected={id === String(selectedNoteId)}
                     onClick={() => selectNote(id || null)}
                     onDelete={() => deleteNote(id)}
                     onTogglePin={() => toggleNotePinned(id, !(note as any).pinned)}
+                    onToggleImportant={() => toggleNoteImportant(id, !(note as any).important)}
                     index={index}
                   />
                 );
               })}
+
             </div>
           )}
         </AnimatePresence>

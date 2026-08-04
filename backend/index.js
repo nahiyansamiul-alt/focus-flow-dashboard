@@ -64,10 +64,12 @@ const db = new sqlite3.Database(dbPath, (err) => {
       folderId INTEGER,
       revision INTEGER DEFAULT 1,
       pinned INTEGER DEFAULT 0,
+      important INTEGER DEFAULT 0,
       lastViewedAt DATETIME,
       createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
       updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
     );
+
 
     CREATE TABLE IF NOT EXISTS note_versions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -113,8 +115,10 @@ const db = new sqlite3.Database(dbPath, (err) => {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
       color TEXT,
+      parentId INTEGER,
       createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
     );
+
 
     CREATE TABLE IF NOT EXISTS history (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -238,6 +242,12 @@ const db = new sqlite3.Database(dbPath, (err) => {
       if (errFolders) console.warn('⚠ Could not ensure folders.color:', errFolders.message);
       else if (addedFolders) console.log('✓ Added missing column folders.color');
 
+      ensureColumn('folders', 'parentId INTEGER', 'parentId', (errParent, addedParent) => {
+        if (errParent) console.warn('⚠ Could not ensure folders.parentId:', errParent.message);
+        else if (addedParent) console.log('✓ Added missing column folders.parentId');
+      });
+
+
       // Ensure history.createdAt (can't add column with non-constant default in SQLite)
       ensureColumn('history', 'createdAt DATETIME', 'createdAt', (err, added) => {
         if (err) console.warn('⚠ Could not ensure history.createdAt:', err.message);
@@ -279,8 +289,10 @@ const db = new sqlite3.Database(dbPath, (err) => {
           const noteColumns = [
             ['revision INTEGER DEFAULT 1', 'revision'],
             ['pinned INTEGER DEFAULT 0', 'pinned'],
+            ['important INTEGER DEFAULT 0', 'important'],
             ['lastViewedAt DATETIME', 'lastViewedAt'],
           ];
+
           let noteIdx = 0;
           function ensureNextNoteCol(done) {
             if (noteIdx >= noteColumns.length) {
@@ -590,7 +602,7 @@ app.delete('/api/todos/:id', (req, res) => {
   });
 });
 
-const mapNoteRow = (row) => row ? ({ ...row, _id: row.id, pinned: Boolean(row.pinned) }) : row;
+const mapNoteRow = (row) => row ? ({ ...row, _id: row.id, pinned: Boolean(row.pinned), important: Boolean(row.important) }) : row;
 
 const normalizeTitle = (value = '') =>
   String(value)
@@ -944,7 +956,7 @@ app.post('/api/notes/:id/restore/:versionId', (req, res) => {
 
 // Update note
 app.put('/api/notes/:id', (req, res) => {
-  const { title, content, folderId, pinned, clientUpdatedAt } = req.body;
+  const { title, content, folderId, pinned, important, clientUpdatedAt } = req.body;
   db.get('SELECT * FROM notes WHERE id = ?', [req.params.id], (err, current) => {
     if (err) {
       console.error('Error fetching note before update:', err);
@@ -961,6 +973,7 @@ app.put('/api/notes/:id', (req, res) => {
     if (content !== undefined) { updates.push('content = ?'); values.push(content); }
     if (folderId !== undefined) { updates.push('folderId = ?'); values.push(folderId); }
     if (pinned !== undefined) { updates.push('pinned = ?'); values.push(pinned ? 1 : 0); }
+    if (important !== undefined) { updates.push('important = ?'); values.push(important ? 1 : 0); }
     if (updates.length === 0) return res.status(400).json({ error: 'No fields to update' });
     updates.push('revision = COALESCE(revision, 1) + 1');
     updates.push('updatedAt = CURRENT_TIMESTAMP');
@@ -1021,38 +1034,45 @@ app.post('/api/notes', (req, res) => {
 });
 
 // Folders
+const mapFolderRow = (row) => row ? ({ ...row, _id: row.id, parentId: row.parentId ?? null }) : row;
+
 app.get('/api/folders', (req, res) => {
   db.all('SELECT * FROM folders ORDER BY createdAt DESC', (err, rows) => {
     if (err) {
       console.error('Error fetching folders:', err);
       return res.status(500).json({ error: 'Failed to fetch folders' });
     }
-    res.json(rows || []);
+    res.json((rows || []).map(mapFolderRow));
   });
 });
 
 app.post('/api/folders', (req, res) => {
-  const { name, color } = req.body;
+  const { name, color, parentId } = req.body;
   if (!name) return res.status(400).json({ error: 'Name is required' });
 
   const finalColor = color || '#3b82f6'; // default blue if not provided
 
   db.run(
-    'INSERT INTO folders (name, color) VALUES (?, ?)',
-    [name, finalColor],
+    'INSERT INTO folders (name, color, parentId) VALUES (?, ?, ?)',
+    [name, finalColor, parentId || null],
     function(err) {
       if (err) {
         console.error('Error creating folder:', err);
         return res.status(500).json({ error: 'Failed to create folder' });
       }
-      res.status(201).json({ id: this.lastID, name, color: finalColor });
+      db.get('SELECT * FROM folders WHERE id = ?', [this.lastID], (err2, row) => {
+        if (err2 || !row) {
+          return res.status(201).json({ id: this.lastID, _id: this.lastID, name, color: finalColor, parentId: parentId || null });
+        }
+        res.status(201).json(mapFolderRow(row));
+      });
     }
   );
 });
 
-// Update folder (name, color)
+// Update folder (name, color, parentId)
 app.put('/api/folders/:id', (req, res) => {
-  const { name, color } = req.body;
+  const { name, color, parentId } = req.body;
   const updates = [];
   const values = [];
 
@@ -1063,6 +1083,13 @@ app.put('/api/folders/:id', (req, res) => {
   if (color !== undefined) {
     updates.push('color = ?');
     values.push(color);
+  }
+  if (parentId !== undefined) {
+    if (parentId !== null && String(parentId) === String(req.params.id)) {
+      return res.status(400).json({ error: 'A folder cannot be its own parent' });
+    }
+    updates.push('parentId = ?');
+    values.push(parentId === null ? null : parentId);
   }
 
   if (updates.length === 0) {
@@ -1082,33 +1109,53 @@ app.put('/api/folders/:id', (req, res) => {
         console.error('Error fetching updated folder:', err2);
         return res.status(500).json({ error: 'Failed to fetch updated folder' });
       }
-      res.json(row || {});
+      res.json(mapFolderRow(row) || {});
     });
   });
 });
 
-// Delete folder and its notes
+// Delete folder, its subfolders and all their notes
 app.delete('/api/folders/:id', (req, res) => {
   const folderId = req.params.id;
 
-  // Delete notes belonging to this folder, then the folder itself
-  db.serialize(() => {
-    db.run('DELETE FROM notes WHERE folderId = ?', [folderId], (err) => {
-      if (err) {
-        console.error('Error deleting folder notes:', err);
-        return res.status(500).json({ error: 'Failed to delete folder notes' });
-      }
+  db.all('SELECT id, parentId FROM folders', (errAll, rows) => {
+    if (errAll) {
+      console.error('Error loading folders for delete:', errAll);
+      return res.status(500).json({ error: 'Failed to delete folder' });
+    }
 
-      db.run('DELETE FROM folders WHERE id = ?', [folderId], function(err2) {
-        if (err2) {
-          console.error('Error deleting folder:', err2);
-          return res.status(500).json({ error: 'Failed to delete folder' });
+    const all = rows || [];
+    const ids = [Number(folderId)];
+    let cursor = 0;
+    while (cursor < ids.length) {
+      const current = ids[cursor++];
+      all.forEach((f) => {
+        if (f.parentId != null && Number(f.parentId) === Number(current) && !ids.includes(Number(f.id))) {
+          ids.push(Number(f.id));
         }
-        res.json({ success: true });
+      });
+    }
+
+    const placeholders = ids.map(() => '?').join(',');
+    db.serialize(() => {
+      db.run(`DELETE FROM notes WHERE folderId IN (${placeholders})`, ids, (err) => {
+        if (err) {
+          console.error('Error deleting folder notes:', err);
+          return res.status(500).json({ error: 'Failed to delete folder notes' });
+        }
+
+        db.run(`DELETE FROM folders WHERE id IN (${placeholders})`, ids, function(err2) {
+          if (err2) {
+            console.error('Error deleting folder:', err2);
+            return res.status(500).json({ error: 'Failed to delete folder' });
+          }
+          res.json({ success: true, deletedFolderIds: ids });
+        });
       });
     });
   });
 });
+
 
 // History
 app.get('/api/history', (req, res) => {
