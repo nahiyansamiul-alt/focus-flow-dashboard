@@ -65,6 +65,7 @@ const db = new sqlite3.Database(dbPath, (err) => {
       revision INTEGER DEFAULT 1,
       pinned INTEGER DEFAULT 0,
       important INTEGER DEFAULT 0,
+      tags TEXT,
       lastViewedAt DATETIME,
       createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
       updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -245,6 +246,16 @@ const db = new sqlite3.Database(dbPath, (err) => {
       ensureColumn('folders', 'parentId INTEGER', 'parentId', (errParent, addedParent) => {
         if (errParent) console.warn('⚠ Could not ensure folders.parentId:', errParent.message);
         else if (addedParent) console.log('✓ Added missing column folders.parentId');
+
+        ensureColumn('folders', 'position INTEGER', 'position', (errPos, addedPos) => {
+          if (errPos) console.warn('⚠ Could not ensure folders.position:', errPos.message);
+          else if (addedPos) console.log('✓ Added missing column folders.position');
+        });
+
+        ensureColumn('notes', 'tags TEXT', 'tags', (errTags, addedTags) => {
+          if (errTags) console.warn('⚠ Could not ensure notes.tags:', errTags.message);
+          else if (addedTags) console.log('✓ Added missing column notes.tags');
+        });
       });
 
 
@@ -602,7 +613,32 @@ app.delete('/api/todos/:id', (req, res) => {
   });
 });
 
-const mapNoteRow = (row) => row ? ({ ...row, _id: row.id, pinned: Boolean(row.pinned), important: Boolean(row.important) }) : row;
+const parseTags = (value) => {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    if (Array.isArray(parsed)) return parsed.map((t) => String(t));
+  } catch {
+    // fall through to comma-separated parsing
+  }
+  return String(value).split(',').map((t) => t.trim()).filter(Boolean);
+};
+
+const serializeTags = (value) => {
+  const list = Array.isArray(value)
+    ? value
+    : String(value || '').split(',');
+  const cleaned = [];
+  list.forEach((tag) => {
+    const normalized = String(tag).trim().replace(/^#/, '');
+    if (normalized && !cleaned.some((t) => t.toLowerCase() === normalized.toLowerCase())) {
+      cleaned.push(normalized);
+    }
+  });
+  return JSON.stringify(cleaned.slice(0, 24));
+};
+
+const mapNoteRow = (row) => row ? ({ ...row, _id: row.id, pinned: Boolean(row.pinned), important: Boolean(row.important), tags: parseTags(row.tags) }) : row;
 
 const normalizeTitle = (value = '') =>
   String(value)
@@ -956,7 +992,7 @@ app.post('/api/notes/:id/restore/:versionId', (req, res) => {
 
 // Update note
 app.put('/api/notes/:id', (req, res) => {
-  const { title, content, folderId, pinned, important, clientUpdatedAt } = req.body;
+  const { title, content, folderId, pinned, important, tags, clientUpdatedAt } = req.body;
   db.get('SELECT * FROM notes WHERE id = ?', [req.params.id], (err, current) => {
     if (err) {
       console.error('Error fetching note before update:', err);
@@ -974,6 +1010,7 @@ app.put('/api/notes/:id', (req, res) => {
     if (folderId !== undefined) { updates.push('folderId = ?'); values.push(folderId); }
     if (pinned !== undefined) { updates.push('pinned = ?'); values.push(pinned ? 1 : 0); }
     if (important !== undefined) { updates.push('important = ?'); values.push(important ? 1 : 0); }
+    if (tags !== undefined) { updates.push('tags = ?'); values.push(serializeTags(tags)); }
     if (updates.length === 0) return res.status(400).json({ error: 'No fields to update' });
     updates.push('revision = COALESCE(revision, 1) + 1');
     updates.push('updatedAt = CURRENT_TIMESTAMP');
@@ -1015,10 +1052,10 @@ app.delete('/api/notes/:id', (req, res) => {
 });
 
 app.post('/api/notes', (req, res) => {
-  const { title, content, folderId, pinned } = req.body;
+  const { title, content, folderId, pinned, tags } = req.body;
   db.run(
-    'INSERT INTO notes (title, content, folderId, pinned) VALUES (?, ?, ?, ?)',
-    [title, content, folderId || null, pinned ? 1 : 0],
+    'INSERT INTO notes (title, content, folderId, pinned, tags) VALUES (?, ?, ?, ?, ?)',
+    [title, content, folderId || null, pinned ? 1 : 0, serializeTags(tags || [])],
     function(err) {
       if (err) {
         console.error('Error creating note:', err);
@@ -1037,12 +1074,34 @@ app.post('/api/notes', (req, res) => {
 const mapFolderRow = (row) => row ? ({ ...row, _id: row.id, parentId: row.parentId ?? null }) : row;
 
 app.get('/api/folders', (req, res) => {
-  db.all('SELECT * FROM folders ORDER BY createdAt DESC', (err, rows) => {
+  db.all('SELECT * FROM folders ORDER BY COALESCE(position, 100000) ASC, createdAt ASC', (err, rows) => {
     if (err) {
       console.error('Error fetching folders:', err);
       return res.status(500).json({ error: 'Failed to fetch folders' });
     }
     res.json((rows || []).map(mapFolderRow));
+  });
+});
+
+// Reorder folders: body { ids: [folderId, ...] } in desired order
+app.put('/api/folders/reorder', (req, res) => {
+  const ids = Array.isArray(req.body?.ids) ? req.body.ids : null;
+  if (!ids || ids.length === 0) return res.status(400).json({ error: 'ids array is required' });
+
+  db.serialize(() => {
+    let failed = null;
+    ids.forEach((id, index) => {
+      db.run('UPDATE folders SET position = ? WHERE id = ?', [index, id], (err) => {
+        if (err && !failed) failed = err;
+      });
+    });
+    db.all('SELECT * FROM folders ORDER BY COALESCE(position, 100000) ASC, createdAt ASC', (err, rows) => {
+      if (err || failed) {
+        console.error('Error reordering folders:', err || failed);
+        return res.status(500).json({ error: 'Failed to reorder folders' });
+      }
+      res.json((rows || []).map(mapFolderRow));
+    });
   });
 });
 
@@ -1070,46 +1129,65 @@ app.post('/api/folders', (req, res) => {
   );
 });
 
-// Update folder (name, color, parentId)
+// Update folder (name, color, parentId, position)
 app.put('/api/folders/:id', (req, res) => {
-  const { name, color, parentId } = req.body;
-  const updates = [];
-  const values = [];
+  const { name, color, parentId, position } = req.body;
 
-  if (name !== undefined) {
-    updates.push('name = ?');
-    values.push(name);
+  if (name !== undefined && !String(name).trim()) {
+    return res.status(400).json({ error: 'Folder name cannot be empty' });
   }
-  if (color !== undefined) {
-    updates.push('color = ?');
-    values.push(color);
+  if (name !== undefined && String(name).trim().length > 60) {
+    return res.status(400).json({ error: 'Folder name must be 60 characters or fewer' });
   }
-  if (parentId !== undefined) {
-    if (parentId !== null && String(parentId) === String(req.params.id)) {
-      return res.status(400).json({ error: 'A folder cannot be its own parent' });
-    }
-    updates.push('parentId = ?');
-    values.push(parentId === null ? null : parentId);
+  if (parentId !== undefined && parentId !== null && String(parentId) === String(req.params.id)) {
+    return res.status(400).json({ error: 'A folder cannot be its own parent' });
   }
 
-  if (updates.length === 0) {
-    return res.status(400).json({ error: 'No fields to update' });
-  }
+  db.get('SELECT * FROM folders WHERE id = ?', [req.params.id], (errCurrent, current) => {
+    if (errCurrent) return res.status(500).json({ error: 'Failed to update folder' });
+    if (!current) return res.status(404).json({ error: 'Folder not found' });
 
-  values.push(req.params.id);
-  const sql = `UPDATE folders SET ${updates.join(', ')} WHERE id = ?`;
+    const targetParent = parentId !== undefined ? parentId : current.parentId;
 
-  db.run(sql, values, function(err) {
-    if (err) {
-      console.error('Error updating folder:', err);
-      return res.status(500).json({ error: 'Failed to update folder' });
-    }
-    db.get('SELECT * FROM folders WHERE id = ?', [req.params.id], (err2, row) => {
-      if (err2) {
-        console.error('Error fetching updated folder:', err2);
-        return res.status(500).json({ error: 'Failed to fetch updated folder' });
+    const applyUpdate = () => {
+      const updates = [];
+      const values = [];
+      if (name !== undefined) { updates.push('name = ?'); values.push(String(name).trim()); }
+      if (color !== undefined) { updates.push('color = ?'); values.push(color); }
+      if (parentId !== undefined) { updates.push('parentId = ?'); values.push(parentId === null ? null : parentId); }
+      if (position !== undefined) { updates.push('position = ?'); values.push(position === null ? null : Number(position)); }
+
+      if (updates.length === 0) {
+        return res.status(400).json({ error: 'No fields to update' });
       }
-      res.json(mapFolderRow(row) || {});
+
+      values.push(req.params.id);
+      db.run(`UPDATE folders SET ${updates.join(', ')} WHERE id = ?`, values, function(err) {
+        if (err) {
+          console.error('Error updating folder:', err);
+          return res.status(500).json({ error: 'Failed to update folder' });
+        }
+        db.get('SELECT * FROM folders WHERE id = ?', [req.params.id], (err2, row) => {
+          if (err2) return res.status(500).json({ error: 'Failed to fetch updated folder' });
+          res.json(mapFolderRow(row) || {});
+        });
+      });
+    };
+
+    if (name === undefined) return applyUpdate();
+
+    // Reject duplicate names among siblings
+    const sql = targetParent == null
+      ? 'SELECT id FROM folders WHERE parentId IS NULL AND id != ? AND LOWER(name) = LOWER(?)'
+      : 'SELECT id FROM folders WHERE parentId = ? AND id != ? AND LOWER(name) = LOWER(?)';
+    const params = targetParent == null
+      ? [req.params.id, String(name).trim()]
+      : [targetParent, req.params.id, String(name).trim()];
+
+    db.get(sql, params, (errDup, dup) => {
+      if (errDup) return res.status(500).json({ error: 'Failed to update folder' });
+      if (dup) return res.status(409).json({ error: 'A folder with that name already exists here' });
+      applyUpdate();
     });
   });
 });

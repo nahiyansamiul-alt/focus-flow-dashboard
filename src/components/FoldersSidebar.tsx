@@ -20,10 +20,12 @@ import {
   FolderPlus,
   Folder as FolderIcon,
   FolderOpen,
+  GripVertical,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "motion/react";
 import { getFolderId, getNoteFolderId } from "@/lib/note-links";
+import { toast } from "sonner";
 
 const folderColors = [
   // Reds / Pinks
@@ -83,6 +85,9 @@ interface TreeNode {
   children: TreeNode[];
 }
 
+const NOTE_DND_TYPE = "application/x-focus-note";
+const FOLDER_DND_TYPE = "application/x-focus-folder";
+
 const FoldersSidebar = () => {
   const {
     folders,
@@ -90,8 +95,10 @@ const FoldersSidebar = () => {
     selectedFolderId,
     selectFolder,
     createFolder,
-    updateFolder,
+    renameFolder,
+    reorderFolders,
     deleteFolder,
+    moveNoteToFolder,
   } = useNotes();
 
   const [isCreating, setIsCreating] = useState(false);
@@ -100,9 +107,13 @@ const FoldersSidebar = () => {
   const [parentForNew, setParentForNew] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
+  const [editingError, setEditingError] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [folderQuery, setFolderQuery] = useState("");
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [noteDropTargetId, setNoteDropTargetId] = useState<string | null>(null);
+  const [folderDragId, setFolderDragId] = useState<string | null>(null);
+  const [folderDropTargetId, setFolderDropTargetId] = useState<string | null>(null);
 
   const noteCountsByFolder = useMemo(() => {
     const counts = new Map<string, number>();
@@ -169,11 +180,22 @@ const FoldersSidebar = () => {
   };
 
   const handleUpdateFolder = async (id: string) => {
-    if (editingName.trim()) {
-      await updateFolder(id, { name: editingName.trim() });
-      setEditingId(null);
-      setEditingName("");
+    const result = await renameFolder(id, editingName);
+    if (!result.ok) {
+      setEditingError(result.error || "Could not rename folder");
+      toast.error(result.error || "Could not rename folder");
+      return;
     }
+    setEditingId(null);
+    setEditingName("");
+    setEditingError(null);
+    toast.success("Folder renamed");
+  };
+
+  const startEditing = (id: string, name: string) => {
+    setEditingId(id);
+    setEditingName(name);
+    setEditingError(null);
   };
 
   const handleDeleteFolder = async (id: string) => {
@@ -181,11 +203,32 @@ const FoldersSidebar = () => {
     setDeleteConfirmId(null);
   };
 
+  const topLevelIds = tree.map((node) => node.id);
+
+  const handleNoteDrop = async (folderId: string, noteId: string) => {
+    const moved = await moveNoteToFolder(noteId, folderId);
+    if (moved) toast.success("Note moved");
+    else toast.error("Could not move note");
+  };
+
+  const handleFolderReorderDrop = async (targetId: string) => {
+    if (!folderDragId || folderDragId === targetId) return;
+    const ids = topLevelIds.filter((id) => id !== folderDragId);
+    const targetIndex = ids.indexOf(targetId);
+    if (targetIndex < 0) return;
+    ids.splice(targetIndex, 0, folderDragId);
+    await reorderFolders(ids);
+  };
+
+
   const renderNode = (node: TreeNode, depth: number) => {
     const isSelected = selectedFolderId === node.id;
     const hasChildren = node.children.length > 0;
     const isOpen = hasChildren && !collapsed[node.id];
     const count = totalSubtreeCount(node);
+
+    const isNoteTarget = noteDropTargetId === node.id;
+    const isFolderTarget = folderDropTargetId === node.id;
 
     return (
       <div key={node.id}>
@@ -193,13 +236,63 @@ const FoldersSidebar = () => {
           layout
           initial={{ opacity: 0, y: 2 }}
           animate={{ opacity: 1, y: 0 }}
+          draggable={depth === 0 && editingId !== node.id}
+          onDragStart={(e: any) => {
+            if (depth !== 0) return;
+            e.dataTransfer?.setData(FOLDER_DND_TYPE, node.id);
+            if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
+            setFolderDragId(node.id);
+          }}
+          onDragEnd={() => {
+            setFolderDragId(null);
+            setFolderDropTargetId(null);
+            setNoteDropTargetId(null);
+          }}
+          onDragOver={(e: any) => {
+            const types: string[] = Array.from(e.dataTransfer?.types || []);
+            if (types.includes(NOTE_DND_TYPE)) {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = "move";
+              setNoteDropTargetId(node.id);
+              setFolderDropTargetId(null);
+            } else if (types.includes(FOLDER_DND_TYPE) && depth === 0 && folderDragId !== node.id) {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = "move";
+              setFolderDropTargetId(node.id);
+              setNoteDropTargetId(null);
+            }
+          }}
+          onDragLeave={() => {
+            setNoteDropTargetId((prev) => (prev === node.id ? null : prev));
+            setFolderDropTargetId((prev) => (prev === node.id ? null : prev));
+          }}
+          onDrop={(e: any) => {
+            e.preventDefault();
+            const noteId = e.dataTransfer?.getData(NOTE_DND_TYPE);
+            const folderId = e.dataTransfer?.getData(FOLDER_DND_TYPE);
+            setNoteDropTargetId(null);
+            setFolderDropTargetId(null);
+            if (noteId) {
+              void handleNoteDrop(node.id, noteId);
+            } else if (folderId && depth === 0) {
+              void handleFolderReorderDrop(node.id);
+            }
+            setFolderDragId(null);
+          }}
           className={cn(
             "group flex items-center gap-1 rounded-md pr-1 py-1 cursor-pointer transition-colors border border-transparent",
-            isSelected ? "bg-primary/10 border-primary/30" : "hover:bg-muted/60"
+            isSelected ? "bg-primary/10 border-primary/30" : "hover:bg-muted/60",
+            isNoteTarget && "bg-primary/15 border-primary ring-1 ring-primary/40",
+            isFolderTarget && "border-dashed border-primary/60",
+            folderDragId === node.id && "opacity-50"
           )}
           style={{ paddingLeft: 4 + depth * 14 }}
           onClick={() => selectFolder(node.id)}
         >
+          {depth === 0 && (
+            <GripVertical className="w-3 h-3 flex-shrink-0 text-muted-foreground/40 opacity-0 group-hover:opacity-100 cursor-grab" />
+          )}
+
           <button
             className={cn(
               "h-4 w-4 flex items-center justify-center flex-shrink-0 text-muted-foreground transition-transform",
@@ -222,22 +315,43 @@ const FoldersSidebar = () => {
           )}
 
           {editingId === node.id ? (
-            <div className="flex items-center gap-1 flex-1" onClick={(e) => e.stopPropagation()}>
-              <Input
-                value={editingName}
-                onChange={(e) => setEditingName(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleUpdateFolder(node.id)}
-                className="h-6 text-xs flex-1"
-                autoFocus
-              />
-              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleUpdateFolder(node.id)}>
-                <Check className="w-3 h-3" />
-              </Button>
-              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setEditingId(null)}>
-                <X className="w-3 h-3" />
-              </Button>
+            <div className="flex-1" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center gap-1">
+                <Input
+                  value={editingName}
+                  onChange={(e) => {
+                    setEditingName(e.target.value);
+                    setEditingError(null);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleUpdateFolder(node.id);
+                    if (e.key === "Escape") {
+                      setEditingId(null);
+                      setEditingError(null);
+                    }
+                  }}
+                  className={cn("h-6 text-xs flex-1", editingError && "border-destructive")}
+                  autoFocus
+                />
+                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleUpdateFolder(node.id)}>
+                  <Check className="w-3 h-3" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6"
+                  onClick={() => {
+                    setEditingId(null);
+                    setEditingError(null);
+                  }}
+                >
+                  <X className="w-3 h-3" />
+                </Button>
+              </div>
+              {editingError && <p className="text-[10px] text-destructive mt-1">{editingError}</p>}
             </div>
           ) : (
+
             <>
               <span className="text-xs font-body truncate flex-1">{node.name}</span>
               <span className="text-[10px] text-muted-foreground tabular-nums group-hover:hidden">
@@ -264,10 +378,10 @@ const FoldersSidebar = () => {
                   title="Rename"
                   onClick={(e) => {
                     e.stopPropagation();
-                    setEditingId(node.id);
-                    setEditingName(node.name);
+                    startEditing(node.id, node.name);
                   }}
                 >
+
                   <Edit2 className="w-3 h-3" />
                 </Button>
                 <Button

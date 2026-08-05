@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { useNotes } from "@/contexts/NotesContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, FileText, Trash2, Pin, PinOff, Search, FolderOpen, Star, Clock } from "lucide-react";
+import { Plus, FileText, Trash2, Pin, PinOff, Search, FolderOpen, Star, Clock, Tag, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getNoteFolderId, getNoteId } from "@/lib/note-links";
 
@@ -15,10 +15,13 @@ interface NoteRowProps {
   important?: boolean;
   isRecent?: boolean;
   isSelected: boolean;
+  tags?: string[];
   onClick: () => void;
   onDelete: () => void;
   onTogglePin: () => void;
   onToggleImportant: () => void;
+  onDragStart?: (event: React.DragEvent) => void;
+  onTagClick?: (tag: string) => void;
   index: number;
 }
 
@@ -56,10 +59,13 @@ const NoteRow = forwardRef<HTMLDivElement, NoteRowProps>(
       important,
       isRecent,
       isSelected,
+      tags,
       onClick,
       onDelete,
       onTogglePin,
       onToggleImportant,
+      onDragStart,
+      onTagClick,
       index,
     },
     ref
@@ -67,6 +73,8 @@ const NoteRow = forwardRef<HTMLDivElement, NoteRowProps>(
     <motion.div
       ref={ref}
       layout
+      draggable
+      onDragStart={onDragStart as any}
       initial={{ opacity: 0, y: 4 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -4 }}
@@ -108,6 +116,26 @@ const NoteRow = forwardRef<HTMLDivElement, NoteRowProps>(
               </span>
             )}
           </div>
+          {!!tags?.length && (
+            <div className="flex flex-wrap items-center gap-1 mt-1.5">
+              {tags.slice(0, 4).map((tag) => (
+                <button
+                  key={tag}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onTagClick?.(tag);
+                  }}
+                  className="inline-flex items-center gap-0.5 rounded-full bg-muted px-1.5 py-px text-[9px] font-medium text-muted-foreground hover:bg-primary/15 hover:text-primary transition-colors"
+                >
+                  <Tag className="w-2.5 h-2.5" />
+                  {tag}
+                </button>
+              ))}
+              {tags.length > 4 && (
+                <span className="text-[9px] text-muted-foreground/70">+{tags.length - 4}</span>
+              )}
+            </div>
+          )}
         </div>
         <div className="flex flex-col gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
           <Button
@@ -170,20 +198,45 @@ const NotesList = () => {
 
   const folder = getSelectedFolder();
   const [query, setQuery] = useState("");
+  const [activeTag, setActiveTag] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
+  const folderNotes = useMemo(
+    () => notes.filter((note) => getNoteFolderId(note) === String(selectedFolderId)),
+    [notes, selectedFolderId]
+  );
+
+  const folderTags = useMemo(() => {
+    const set = new Set<string>();
+    folderNotes.forEach((note) => (note.tags || []).forEach((tag) => tag && set.add(tag)));
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [folderNotes]);
+
   const filteredNotes = useMemo(() => {
-    const inFolder = notes.filter(
-      (note) => getNoteFolderId(note) === String(selectedFolderId)
-    );
-    const q = query.trim().toLowerCase();
-    if (!q) return inFolder;
-    return inFolder.filter(
+    let list = folderNotes;
+    if (activeTag) {
+      list = list.filter((n) =>
+        (n.tags || []).some((tag) => tag.toLowerCase() === activeTag.toLowerCase())
+      );
+    }
+    const raw = query.trim().toLowerCase();
+    if (!raw) return list;
+
+    // "#tag" style queries search tags only
+    if (raw.startsWith("#")) {
+      const tagQuery = raw.slice(1);
+      if (!tagQuery) return list;
+      return list.filter((n) => (n.tags || []).some((tag) => tag.toLowerCase().includes(tagQuery)));
+    }
+
+    return list.filter(
       (n) =>
-        n.title.toLowerCase().includes(q) ||
-        (n.content || "").toLowerCase().includes(q)
+        n.title.toLowerCase().includes(raw) ||
+        (n.content || "").toLowerCase().includes(raw) ||
+        (n.tags || []).some((tag) => tag.toLowerCase().includes(raw))
     );
-  }, [notes, selectedFolderId, query]);
+  }, [folderNotes, query, activeTag]);
+
 
   const handleCreateNote = async () => {
     if (selectedFolderId) await createNote("Untitled", "");
@@ -221,15 +274,48 @@ const NotesList = () => {
       </div>
 
       {/* Search */}
-      <div className="relative mb-3">
+      <div className="relative mb-2">
         <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
         <Input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search notes..."
+          placeholder="Search notes or #tag..."
           className="h-8 text-xs pl-8"
         />
       </div>
+
+      {/* Tag filters */}
+      {folderTags.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1 mb-3">
+          {folderTags.slice(0, 12).map((tag) => {
+            const active = activeTag?.toLowerCase() === tag.toLowerCase();
+            return (
+              <button
+                key={tag}
+                onClick={() => setActiveTag(active ? null : tag)}
+                className={cn(
+                  "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium border transition-colors",
+                  active
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-muted/60 text-muted-foreground border-transparent hover:border-primary/40"
+                )}
+              >
+                <Tag className="w-2.5 h-2.5" />
+                {tag}
+              </button>
+            );
+          })}
+          {activeTag && (
+            <button
+              onClick={() => setActiveTag(null)}
+              className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] text-muted-foreground hover:text-foreground"
+            >
+              <X className="w-2.5 h-2.5" /> Clear
+            </button>
+          )}
+        </div>
+      )}
+
 
       {/* Notes List */}
       <div
@@ -268,10 +354,16 @@ const NotesList = () => {
                     important={Boolean((note as any).important)}
                     isRecent={isRecent}
                     isSelected={id === String(selectedNoteId)}
+                    tags={note.tags || []}
                     onClick={() => selectNote(id || null)}
                     onDelete={() => deleteNote(id)}
                     onTogglePin={() => toggleNotePinned(id, !(note as any).pinned)}
                     onToggleImportant={() => toggleNoteImportant(id, !(note as any).important)}
+                    onTagClick={(tag) => setActiveTag((prev) => (prev === tag ? null : tag))}
+                    onDragStart={(event) => {
+                      event.dataTransfer.setData("application/x-focus-note", id);
+                      event.dataTransfer.effectAllowed = "move";
+                    }}
                     index={index}
                   />
                 );

@@ -62,6 +62,7 @@ import {
   Lock,
   Unlock,
   Layers,
+  X,
 } from "lucide-react";
 import {
   Dialog,
@@ -104,6 +105,10 @@ interface MarkdownEditorProps {
   onOpenFolder?: (folderId: string) => void;
   onCreateLinkedNote?: (title: string, folderId?: string) => Promise<string | null>;
   onTogglePinned?: (pinned: boolean) => Promise<void>;
+  important?: boolean;
+  onToggleImportant?: (important: boolean) => Promise<void>;
+  tags?: string[];
+  onTagsChange?: (tags: string[]) => Promise<void> | void;
   getIndexedReferences?: (noteId: string) => Promise<ApiIndexedReferences | null>;
   getNoteVersions?: (noteId: string) => Promise<NoteVersion[]>;
   onRestoreVersion?: (noteId: string, versionId: string) => Promise<void>;
@@ -176,6 +181,10 @@ const MarkdownEditor = ({
   onOpenFolder,
   onCreateLinkedNote,
   onTogglePinned,
+  important = false,
+  onToggleImportant,
+  tags = [],
+  onTagsChange,
   getIndexedReferences,
   getNoteVersions,
   onRestoreVersion,
@@ -199,6 +208,7 @@ const MarkdownEditor = ({
   const [highlightStyle, setHighlightStyle] = useState<boolean>(
     () => localStorage.getItem("editor-highlight-style") === "true"
   );
+  const [tagDraft, setTagDraft] = useState("");
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -288,6 +298,59 @@ const MarkdownEditor = ({
       cancelled = true;
     };
   }, [getIndexedReferences, noteId, localContent]);
+
+  // Tag helpers
+  const commitTags = useCallback(
+    (next: string[]) => {
+      const cleaned: string[] = [];
+      next.forEach((tag) => {
+        const normalized = tag.trim().replace(/^#/, "");
+        if (normalized && !cleaned.some((t) => t.toLowerCase() === normalized.toLowerCase())) {
+          cleaned.push(normalized);
+        }
+      });
+      void onTagsChange?.(cleaned);
+    },
+    [onTagsChange]
+  );
+
+  const addTagFromDraft = useCallback(() => {
+    const parts = tagDraft.split(",");
+    if (!parts.some((p) => p.trim())) return;
+    commitTags([...tags, ...parts]);
+    setTagDraft("");
+  }, [commitTags, tagDraft, tags]);
+
+  const removeTag = useCallback(
+    (tag: string) => {
+      commitTags(tags.filter((t) => t.toLowerCase() !== tag.toLowerCase()));
+    },
+    [commitTags, tags]
+  );
+
+  // Global note shortcuts: Ctrl/Cmd+Shift+I important, +H highlight, +E edit/preview
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      const mod = e.ctrlKey || e.metaKey;
+      if (!mod || !e.shiftKey) return;
+      const k = e.key.toLowerCase();
+      if (k === "i" && onToggleImportant) {
+        e.preventDefault();
+        void onToggleImportant(!important);
+      } else if (k === "h") {
+        e.preventDefault();
+        setHighlightStyle((prev) => !prev);
+      } else if (k === "e") {
+        e.preventDefault();
+        setIsPreview((prev) => {
+          if (prev) requestAnimationFrame(() => textareaRef.current?.focus());
+          return !prev;
+        });
+      }
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [important, onToggleImportant]);
 
   // Annotation keyboard shortcuts (only when annotation mode is active)
   useEffect(() => {
@@ -505,6 +568,36 @@ const MarkdownEditor = ({
             {title}
           </h2>
         )}
+
+        {onTagsChange && (
+          <div className="flex flex-wrap items-center gap-1">
+            {tags.map((tag) => (
+              <span
+                key={tag}
+                className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground"
+              >
+                #{tag}
+                <button onClick={() => removeTag(tag)} title="Remove tag" className="hover:text-destructive">
+                  <X className="w-2.5 h-2.5" />
+                </button>
+              </span>
+            ))}
+            <Input
+              value={tagDraft}
+              onChange={(e) => setTagDraft(e.target.value)}
+              onBlur={addTagFromDraft}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === ",") {
+                  e.preventDefault();
+                  addTagFromDraft();
+                }
+              }}
+              placeholder="add tag"
+              className="h-6 w-24 text-[10px] px-2"
+            />
+          </div>
+        )}
+
         
         <div className="ml-auto">
           <div className="flex items-center gap-2">
