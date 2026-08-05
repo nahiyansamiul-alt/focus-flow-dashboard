@@ -20,6 +20,7 @@ import {
   FolderPlus,
   Folder as FolderIcon,
   FolderOpen,
+  GripVertical,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "motion/react";
