@@ -83,6 +83,9 @@ interface TreeNode {
   children: TreeNode[];
 }
 
+const NOTE_DND_TYPE = "application/x-focus-note";
+const FOLDER_DND_TYPE = "application/x-focus-folder";
+
 const FoldersSidebar = () => {
   const {
     folders,
@@ -90,8 +93,10 @@ const FoldersSidebar = () => {
     selectedFolderId,
     selectFolder,
     createFolder,
-    updateFolder,
+    renameFolder,
+    reorderFolders,
     deleteFolder,
+    moveNoteToFolder,
   } = useNotes();
 
   const [isCreating, setIsCreating] = useState(false);
@@ -100,9 +105,13 @@ const FoldersSidebar = () => {
   const [parentForNew, setParentForNew] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
+  const [editingError, setEditingError] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [folderQuery, setFolderQuery] = useState("");
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [noteDropTargetId, setNoteDropTargetId] = useState<string | null>(null);
+  const [folderDragId, setFolderDragId] = useState<string | null>(null);
+  const [folderDropTargetId, setFolderDropTargetId] = useState<string | null>(null);
 
   const noteCountsByFolder = useMemo(() => {
     const counts = new Map<string, number>();
