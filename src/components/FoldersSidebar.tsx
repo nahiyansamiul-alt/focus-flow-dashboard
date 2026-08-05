@@ -24,6 +24,7 @@ import {
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "motion/react";
 import { getFolderId, getNoteFolderId } from "@/lib/note-links";
+import { toast } from "sonner";
 
 const folderColors = [
   // Reds / Pinks
