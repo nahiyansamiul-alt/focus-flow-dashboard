@@ -7,7 +7,6 @@ import RemindersList from "@/components/RemindersList";
 import ContributionGrid from "@/components/ContributionGrid";
 import Stats from "@/components/Stats";
 import AudioVisualizer from "@/components/AudioVisualizer";
-import ProductivityTips from "@/components/ProductivityTips";
 import KeyboardShortcutsModal, { KeyboardShortcutsButton } from "@/components/KeyboardShortcutsModal";
 import { ReminderForm } from "@/components/ReminderForm";
 import { RemindersProvider } from "@/contexts/RemindersContext";
@@ -21,6 +20,7 @@ const IndexContent = () => {
   const navigate = useNavigate();
   const [reminderFormOpen, setReminderFormOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [expanded, setExpanded] = useState<"tasks" | "reminders" | null>(null);
 
   useKeyboardShortcuts({
     onNewReminder: () => setReminderFormOpen(true),
@@ -50,20 +50,37 @@ const IndexContent = () => {
       </header>
 
       {/* Main Grid Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5 lg:gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5 lg:gap-6 items-start">
         {/* Left Column - Timer, Clock & Visualizer */}
-        <div className="lg:col-span-5 space-y-4 sm:space-y-5 lg:space-y-6">
-          <Timer />
-          <Clock />
-          <AudioVisualizer />
-        </div>
+        {expanded === null && (
+          <div className="lg:col-span-5 space-y-4 sm:space-y-5 lg:space-y-6">
+            <Timer />
+            <Clock />
+            <AudioVisualizer />
+          </div>
+        )}
 
-        {/* Right Column - Todo, Reminders, Stats & Tips */}
-        <div className="lg:col-span-7 space-y-4 sm:space-y-5 lg:space-y-6">
-          <TodoList />
-          <RemindersList />
-          <Stats />
-          <ProductivityTips />
+        {/* Right Column - Todo, Reminders & Stats */}
+        <div className={`${expanded === null ? "lg:col-span-7" : "lg:col-span-12"} space-y-4 sm:space-y-5 lg:space-y-6`}>
+          <div
+            className={`grid gap-4 sm:gap-5 lg:gap-6 items-stretch ${
+              expanded === null ? "grid-cols-1 xl:grid-cols-2" : "grid-cols-1"
+            }`}
+          >
+            {expanded !== "reminders" && (
+              <TodoList
+                expanded={expanded === "tasks"}
+                onToggleExpand={() => setExpanded(expanded === "tasks" ? null : "tasks")}
+              />
+            )}
+            {expanded !== "tasks" && (
+              <RemindersList
+                expanded={expanded === "reminders"}
+                onToggleExpand={() => setExpanded(expanded === "reminders" ? null : "reminders")}
+              />
+            )}
+          </div>
+          {expanded === null && <Stats />}
         </div>
       </div>
 
