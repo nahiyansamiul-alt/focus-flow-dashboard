@@ -11,6 +11,7 @@ import KeyboardShortcutsModal, { KeyboardShortcutsButton } from "@/components/Ke
 import { ReminderForm } from "@/components/ReminderForm";
 import { RemindersProvider } from "@/contexts/RemindersContext";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { useTheme } from "@/contexts/ThemeContext";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { ActiveTimerIndicator } from "@/components/ActiveTimerIndicator";
 import { Button } from "@/components/ui/button";
@@ -26,8 +27,18 @@ const IndexContent = () => {
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [expanded, setExpanded] = useState<"tasks" | "reminders" | null>(null);
 
+  const { cycleTheme } = useTheme();
+
   useKeyboardShortcuts({
     onNewReminder: () => setReminderFormOpen(true),
+    onNewTask: () => window.dispatchEvent(new Event("focusflow:new-task")),
+    onGoDashboard: () => navigate("/"),
+    onGoNotes: () => navigate("/notes"),
+    onGoCanvas: () => navigate("/canvas"),
+    onGoHelp: () => navigate("/help"),
+    onCycleTheme: cycleTheme,
+    onShowShortcuts: () => setShortcutsOpen(true),
+    onEscape: () => setExpanded(null),
   });
 
   return (
