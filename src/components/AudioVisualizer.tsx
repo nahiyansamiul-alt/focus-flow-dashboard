@@ -1,11 +1,14 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Music, Mic, Monitor, Play, Square, Palette, Flame } from "lucide-react";
+import { Music, Mic, Monitor, Play, Square, Palette, Flame, Volume2, Sliders } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Slider } from "@/components/ui/slider";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import FireGrid from "@/components/FireGrid";
 
 const BAR_COUNT = 48;
 type SourceType = "system" | "mic";
 type VizMode = "bars" | "fire";
+
 
 // Parse "H S% L%" CSS variable into [h, s, l] numbers
 function parseCssHsl(val: string): [number, number, number] {
@@ -25,13 +28,18 @@ const AudioVisualizer = () => {
   const [colored, setColored] = useState(false);
   const [mode, setMode] = useState<VizMode>("bars");
   const [analyserNode, setAnalyserNode] = useState<AnalyserNode | null>(null);
+  const [flameHeight, setFlameHeight] = useState(100);
+  const [balanced, setBalanced] = useState(false);
   const coloredRef = useRef(false);
+  const balancedRef = useRef(false);
+  const maxHeightRef = useRef(1);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animFrameRef = useRef<number>(0);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const smoothedRef = useRef<Float32Array>(new Float32Array(BAR_COUNT));
+
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -65,9 +73,23 @@ const AudioVisualizer = () => {
     const smoothed = smoothedRef.current;
 
     const step = Math.floor(data.length / BAR_COUNT);
+    const bal = balancedRef.current;
+    const maxH = maxHeightRef.current;
+
+    // Overall loudness — used in full-volume mode as a floor so the high-end
+    // (right side) never sits flat while music is loud.
+    let level = 0;
+    for (let i = 0; i < data.length; i++) level += data[i];
+    level = level / (data.length * 255);
 
     for (let i = 0; i < BAR_COUNT; i++) {
-      const raw = data[i * step] / 255;
+      const u = i / (BAR_COUNT - 1); // 0 = bass, 1 = treble
+      let raw = data[i * step] / 255;
+      if (bal) {
+        // Flatten spectral rolloff, then floor with overall level.
+        raw = Math.min(1, raw * (1 + 5 * u * u));
+        raw = Math.max(raw, level * 0.85);
+      }
 
       // Fast attack, slow decay
       smoothed[i] = raw > smoothed[i]
@@ -75,8 +97,8 @@ const AudioVisualizer = () => {
         : smoothed[i] + (raw - smoothed[i]) * 0.12;
 
       // Power curve — makes quiet parts more visible, loud parts more dramatic
-      const val = Math.pow(smoothed[i], 0.65);
-      const barH = val * h * 0.92;
+      const val = Math.pow(smoothed[i], bal ? 0.45 : 0.65);
+      const barH = val * h * 0.92 * maxH;
       const x = i * barW;
 
       if (coloredRef.current) {
@@ -90,6 +112,7 @@ const AudioVisualizer = () => {
 
     animFrameRef.current = requestAnimationFrame(draw);
   }, []);
+
 
   const stop = useCallback(() => {
     cancelAnimationFrame(animFrameRef.current);
@@ -184,10 +207,21 @@ const AudioVisualizer = () => {
     setColored((v) => !v);
   };
 
+  const toggleBalanced = () => {
+    balancedRef.current = !balancedRef.current;
+    setBalanced((v) => !v);
+  };
+
+  const changeFlameHeight = (v: number) => {
+    maxHeightRef.current = Math.max(0.2, v / 100);
+    setFlameHeight(v);
+  };
+
   const start = () => {
     if (source === "mic") startMic();
     else startSystem();
   };
+
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -215,12 +249,45 @@ const AudioVisualizer = () => {
           </span>
         </div>
         <div className="flex items-center gap-1 shrink-0">
+          <Popover>
+            <PopoverTrigger asChild>
+              <button
+                className="p-1 border border-border rounded transition-colors mr-1 text-muted-foreground hover:text-foreground"
+                title="Flame height"
+              >
+                <Sliders className="h-3 w-3" />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-52 p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-body text-[10px] uppercase tracking-widest text-muted-foreground">
+                  Max height
+                </span>
+                <span className="font-mono text-[10px] text-foreground">{flameHeight}%</span>
+              </div>
+              <Slider
+                value={[flameHeight]}
+                min={20}
+                max={100}
+                step={5}
+                onValueChange={(v) => changeFlameHeight(v[0])}
+              />
+            </PopoverContent>
+          </Popover>
+          <button
+            onClick={toggleBalanced}
+            className={`p-1 border border-border rounded transition-colors mr-1 ${balanced ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+            title={balanced ? "Full-volume mode on" : "Full-volume mode off"}
+          >
+            <Volume2 className="h-3 w-3" />
+          </button>
           <button
             onClick={() => setMode((m) => (m === "fire" ? "bars" : "fire"))}
             className={`p-1 border border-border rounded transition-colors mr-1 ${mode === "fire" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
             title={mode === "fire" ? "Fire mode on" : "Fire mode off"}
           >
             <Flame className="h-3 w-3" />
+
           </button>
           <button
             onClick={toggleColored}
@@ -274,7 +341,14 @@ const AudioVisualizer = () => {
 
       <div className="flex-1 relative min-h-0">
         {mode === "fire" ? (
-          <FireGrid analyser={analyserNode} cell={7} />
+          <FireGrid
+            analyser={analyserNode}
+            cell={7}
+            maxHeight={flameHeight / 100}
+            balanced={balanced}
+            fps={45}
+          />
+
         ) : (
           <canvas ref={canvasRef} className="w-full h-full block" />
         )}
