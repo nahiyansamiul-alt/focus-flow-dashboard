@@ -7,7 +7,7 @@ import NotesList from "@/components/NotesList";
 import MarkdownEditor from "@/components/MarkdownEditor";
 import GraphView from "@/components/GraphView";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, FileText, Plus, FolderClosed, List, PenTool, Network, Download, Upload, HelpCircle, Search, CalendarDays, LayoutTemplate, Pin, Clock, MoreHorizontal } from "lucide-react";
+import { ArrowLeft, FileText, Plus, FolderClosed, List, PenTool, Network, Download, Upload, HelpCircle, Search, CalendarDays, LayoutTemplate, Pin, Clock, MoreHorizontal, BookMarked } from "lucide-react";
 import {
   CommandDialog,
   CommandEmpty,
@@ -31,6 +31,7 @@ import { exportMarkdownVault, readMarkdownImportFiles, uniqueImportTitle } from 
 import { getApiBaseUrl } from "@/lib/api";
 import { getNoteFolderId, getNoteId } from "@/lib/note-links";
 import { toast } from "sonner";
+import { GlossaryManager } from "@/components/GlossaryManager";
 
 const noteTemplates = [
   {
@@ -75,6 +76,7 @@ const NotesContent = () => {
   const [isNotesListCollapsed, setIsNotesListCollapsed] = useState(false);
   const [isGraphView, setIsGraphView] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
+  const [glossaryOpen, setGlossaryOpen] = useState(false);
   const [commandQuery, setCommandQuery] = useState("");
   
   const selectedNote = getSelectedNote();
@@ -339,6 +341,10 @@ const NotesContent = () => {
               <PenTool className="w-4 h-4 mr-2" />
               Canvas
             </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setGlossaryOpen(true)}>
+              <BookMarked className="mr-2 h-4 w-4" />
+              Noted words
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={() => navigate("/help")}>
               <HelpCircle className="w-4 h-4 mr-2" />
               Help
@@ -515,6 +521,8 @@ const NotesContent = () => {
           </CommandGroup>
         </CommandList>
       </CommandDialog>
+
+      <GlossaryManager isOpen={glossaryOpen} onOpenChange={setGlossaryOpen} />
     </div>
   );
 };

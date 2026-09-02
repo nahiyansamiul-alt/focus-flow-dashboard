@@ -10,6 +10,7 @@ import { useSession, Session } from "@/contexts/SessionContext";
 import { useReminders } from "@/contexts/RemindersContext";
 import { ReminderPopup } from "./ReminderPopup";
 import { formatLocalDateKey } from "@/lib/api";
+import { useDeadlines } from "@/hooks/use-deadlines";
 
 interface DayData {
   level: number;
@@ -22,6 +23,7 @@ const ContributionGrid = () => {
   const [reminderPopupOpen, setReminderPopupOpen] = useState(false);
   const { sessions } = useSession();
   const { reminders, getRemindersByDate } = useReminders();
+  const { byDateKey } = useDeadlines();
 
   // Generate data for all 12 months in calendar year order
   const today = new Date();
@@ -119,6 +121,9 @@ const ContributionGrid = () => {
               ))}
             </div>
             <span className="font-body text-[10px] md:text-xs text-muted-foreground">More</span>
+            <span className="ml-2 flex items-center gap-1 font-body text-[10px] md:text-xs text-muted-foreground">
+              <span className="h-1.5 w-1.5 rounded-full bg-primary" /> Due date
+            </span>
           </div>
         </div>
 
